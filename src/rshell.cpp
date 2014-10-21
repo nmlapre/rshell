@@ -46,14 +46,26 @@ void push_to_vectors(string t, string s);
 int main()
 {
 	while(1) {
-		clear_globals();
-		string input = user_prompt();
-		vector<string> tokens = tokenize(input);
-		char** argv = to_char_array(tokens);
-		BOOST_FOREACH (char* arg, argv) {
-			//cout << '[' << arg << ']' << endl;
-		}
-		execute(argv);
+		clear_globals(); //clears out global vectors each time
+		string input = user_prompt(); //gets user input
+		tokenize(input); //populates global vectors
+		vector<string>::iterator it;
+		vector<string>::iterator j = connectors.begin();
+		vector<string> temp; //holds each full command between connectors
+		for (it = commands.begin() ; it != commands.end(); ++it) {
+			temp.clear();
+			while (*it != "CONNECTOR") {
+				temp.push_back(*it);
+				++it;
+				cout << "while loop" << endl;
+			}
+			cout << "before to_char_array" << endl;
+			char** argv = to_char_array(temp);
+			execute(argv);
+		} 
+		//char** argv = to_char_array(tokens);
+		
+		//execute(argv);
 	}
 }
 
@@ -81,7 +93,6 @@ vector<string> tokenize(string user_input) {
 	string pipes = "||";
 	string sharp = "#";
 	BOOST_FOREACH (string t, tokenList) {
-		cout << "testing connector loop" << endl;
 		if (t.find(";") != string::npos) {
 			push_to_vectors(t, sc);	
 		}
@@ -100,7 +111,9 @@ vector<string> tokenize(string user_input) {
 			exit(1);
 		}
 	}
+	cout << "commands vector: " << endl;
 	BOOST_FOREACH (string c, commands) { cout << '[' << c << ']' << endl; }
+	cout << "connectors vector: " << endl;
 	BOOST_FOREACH (string c, connectors) { cout << '[' << c << ']' << endl; }
 	return tokenList;
 }
