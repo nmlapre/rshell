@@ -1,0 +1,197 @@
+Script started on Tue 21 Oct 2014 10:52:50 PM PDT
+$ cs100
+[0;91m
+===============================================================================
+|                                                                             |
+| You have enabled settings specific for cs100.                               |
+|                                                                             |
+===============================================================================
+[0m
+[s%%%%%%%%%%[u[0;32mnlapr001[0;36m@[0;32mcs100[0;36m:[0;32m~[0;95m [0;36m$[0m cd Dc[Kocuments/CS100/rshell/bin/
+[s%%%%%%%%%%[u[0;32mnlapr001[0;36m@[0;32mcs100[0;36m:[0;32m~/Documents/CS100/rshell/bin[0;95m (exec) [0;36m$[0m ls
+rshell	test
+[s%%%%%%%%%%[u[0;32mnlapr001[0;36m@[0;32mcs100[0;36m:[0;32m~/Documents/CS100/rshell/bin[0;95m (exec) [0;36m$[0m 
+[s%%%%%%%%%%[u[0;32mnlapr001[0;36m@[0;32mcs100[0;36m:[0;32m~/Documents/CS100/rshell/bin[0;95m (exec) [0;36m$[0m rshell
+~$ ls -a
+.  ..  rshell  test
+~$ ls
+rshell	test
+~$ pwd
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+~$ ls -al
+total 84
+drwx------ 3 nlapr001 csmajs  4096 Oct 21 22:37 .
+drwx------ 6 nlapr001 csmajs  4096 Oct 21 22:34 ..
+-rwx------ 1 nlapr001 csmajs 65653 Oct 21 22:34 rshell
+drwx------ 2 nlapr001 csmajs  4096 Oct 21 22:36 test
+~$ l  s -a -l
+execvp: Bad address
+~$ ls  clear
+[H[2J~$  # i will continue to do basic unix tests s
+~$ ps
+  PID TTY          TIME CMD
+ 3291 pts/71   00:00:00 bash
+ 3395 pts/71   00:00:00 rshell
+ 3531 pts/71   00:00:00 ps
+~$ 
+~$ touch test2 
+~$ rm test
+rm: cannot remove `test': Is a directory
+~$ ls
+rshell	test
+~$ ls ./test
+~$ touch       vim test2
+7[?47h[?1h=[1;57r[m[H[2J[57;1H"test2" [New File][>c[2;1H[1m[34m~                                                                                                     [3;1H~                                                                                                     [4;1H~                                                                                                     [5;1H~                                                                                                     [6;1H~                                                                                                     [7;1H~                                                                                                     [8;1H~                                                                                                     [9;1H~                                                                                                     [10;1H~                                                                                                     [11;1H~                                                                                                     [12;1H~                                                                                                     [13;1H~                                                                                                     [14;1H~                                                                                                     [15;1H~                                                                                                     [16;1H~                                                                                                     [17;1H~                                                                                                     [18;1H~                                                                                                     [19;1H~                                                                                                     [20;1H~                                                                                                     [21;1H~                                                                                                     [22;1H~                                                                                                     [23;1H~                                                                                                     [24;1H~                                                                                                     [25;1H~                                                                                                     [26;1H~                                                                                                     [27;1H~                                                                                                     [28;1H~                                                                                                     [29;1H~                                                                                                     [30;1H~                                                                                                     [31;1H~                                                                                                     [32;1H~                                                                                                     [33;1H~                                                                                                     [34;1H~                                                                                                     [35;1H~                                                                                                     [36;1H~                                                                                                     [37;1H~                                                                                                     [38;1H~                                                                                                     [39;1H~                                                                                                     [40;1H~                                                                                                     [41;1H~                                                                                                     [42;1H~                                                                                                     [43;1H~                                                                                                     [44;1H~                                                                                                     [45;1H~                                                                                                     [46;1H~                                                                                                     [47;1H~                                                                                                     [48;1H~                                                                                                     [49;1H~                                                                                                     [50;1H~                                                                                                     [51;1H~                                                                                                     [52;1H~                                                                                                     [53;1H~                                                                                                     [54;1H~                                                                                                     [55;1H~                                                                                                     [56;1H~                                                                                                     [m[57;85H0,0-1[9CAll[1;1HP+q436f\P+q6b75\P+q6b64\P+q6b72\P+q6b6c\P+q2332\P+q2334\P+q2569\P+q2a37\P+q6b31\[57;1H[1m-- INSERT --[m[57;14H[K[57;85H0,1[11CAll[1;1Ht[57;85H1,2[1;2Hte[57;87H3[1;3Hes[57;87H4[1;4Hst[57;87H5[1;5Hti[57;87H6[1;6Hin[57;87H7[1;7Hng[57;87H8[1;8Hg![57;87H9[1;9H!:[57;87H10[1;10H[1;9H[K[57;87H9 [1;9H[57;1H[K[1;8H[57;85H1,8[11CAll[1;8H[57;85H[K[57;1H:q[57;2H[K[57;2Hwq"test2" [New] 1L, 9C written
+[?1l>[2J[?47l8~$ cat test2
+testing!
+~$ git status
+# On branch exec
+# Changes not staged for commit:
+#   (use "git add <file>..." to update what will be committed)
+#   (use "git checkout -- <file>..." to discard changes in working directory)
+#
+#	[31mmodified:   ../src/rshell.cpp[m
+#
+# Untracked files:
+#   (use "git add <file>..." to include in what will be committed)
+#
+#	[31m./[m
+#	[31m../src/a.out[m
+#	[31m../src/rshell[m
+#	[31m../tests/[m
+no changes added to commit (use "git add" and/or "git commit -a")
+~$ 
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: CPU:18 MC4_STATUS[Over|CE|MiscV|-|AddrV|CECC]: 0xdc5c410004080a13
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: 	MC4_ADDR: 0x0000001891a88210
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: Northbridge Error (node 3): DRAM ECC error detected on the NB.
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: cache level: L3/GEN, mem/io: MEM, mem-tx: RD, part-proc: RES (no timeout)
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: CPU:18 MC4_STATUS[Over|CE|MiscV|-|AddrV|CECC]: 0xdc5c410004080a13
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: 	MC4_ADDR: 0x0000001891a88210
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: Northbridge Error (node 3): DRAM ECC error detected on the NB.
+
+Message from syslogd@hammer at Oct 21 22:54:36 ...
+ kernel:[Hardware Error]: cache level: L3/GEN, mem/io: MEM, mem-tx: RD, part-proc: RES (no timeout)
+q 
+~$ pwd &&        ls -a && pwd
+.  ..  rshell  test  test2
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+~$ ls && pwd
+rshell	test  test2
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+~$ ls ||pwd
+rshell	test  test2
+~$ ls  
+rshell	test  test2
+~$ ls||pwd
+rshell	test  test2
+~$ ls|| pwd
+rshell	test  test2
+~$ #~~~~~~~~~~~~~~~~HER   here i continue to test                test basic unix            connectors such as || and &&                  !!!!!!!       ~~~~~~~~~~~~~~~
+~$ ls -a || pwd
+.  ..  rshell  test  test2
+~$ ls -a || pwdw d&& pqds            w
+.  ..  rshell  test  test2
+~$ ls -a || pwd && pwd
+.  ..  rshell  test  test2
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+~$ aoisdfj && sdifj && sdfkj
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+~$ pwd25 || echo test
+execvp: No such file or directory
+~$ pwd || w echo test
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+~$ echo trest      est ; echo test; echo test
+test
+test
+test
+~$ echo test;t echo test
+test
+test
+~$ pwd     pwd&&pwd  ; echo test         la -a    s -a
+execvp: No such file or directory
+.  ..  rshell  test  test2
+~$ pwd&&  pwd ; la s -a
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+/home/csmajs/nlapr001/Documents/CS100/rshell/bin
+.  ..  rshell  test  test2
+~$ e rshell
+~$ rshell
+~$ rh shell
+~$ rshell
+~$ exit
+~$ exit
+~$ exit
+~$ exit
+~$ # these   abi ove exit and rshell calls c prove that it can handle calling itself and exiting itself in the same o amounf t of calls
+[s%%%%%%%%%%[u[0;32mnlapr001[0;36m@[0;32mcs100[0;36m:[0;32m~/Documents/CS100/rshell/bin[0;95m (exec) [0;36m$[0m rshell
+~$ # I attep mp to     t p to access a filesystem outside of b /bin    rshell's directory^[[D^[[D^[[D^[[D^[[D                     y
+~$ pwd   cd /bin
+execvp: No such file or directory
+~$ ls /bin
+alsaunmute  date		  fusermount	      lscgroup	     readlink	tracepath
+arch	    dbus-cleanup-sockets  gawk		      lssubsys	     red	tracepath6
+awk	    dbus-daemon		  gettext	      mail	     rm		traceroute
+basename    dbus-monitor	  grep		      mailx	     rmdir	traceroute6
+bash	    dbus-send		  gtar		      mkdir	     rnano	true
+cat	    dbus-uuidgen	  gunzip	      mknod	     rpm	ulockmgr_server
+cgclassify  dd			  gzip		      mktemp	     rvi	umount
+cgcreate    df			  hostname	      more	     rview	uname
+cgdelete    dmesg		  ipcalc	      mount	     sed	unicode_start
+cgexec	    dnsdomainname	  iptables-xml	      mountpoint     setfont	unicode_stop
+cgget	    domainname		  iptables-xml-1.4.7  mv	     setserial	unlink
+cgset	    dumpkeys		  kbd_mode	      nano	     sh		usleep
+cgsnapshot  echo		  keyctl	      netstat	     sleep	vi
+chgrp	    ed			  kill		      nice	     sort	view
+chmod	    egrep		  link		      nisdomainname  stty	ypdomainname
+chown	    env			  ln		      ping	     su		zcat
+cp	    ex			  loadkeys	      ping6	     sync
+cpio	    false		  logger	      plymouth	     tar
+csh	    fgrep		  login		      ps	     taskset
+cut	    find		  ls		      pwd	     tcsh
+dash	    findmnt		  lsblk		      raw	     touch
+~$ ls -a /bin
+execvp: Bad address
+~$ fail    fail && fail && fail
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+~$ fail || fail || fail
+execvp: No such file or directory
+~$ fail && fail && fail && fail && fail && fail && fail && fail && fail
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+execvp: No such file or directory
+~$ fail || fail || fail || fail || Fail ||         fail || Fail      fail || fail || fail || fail
+execvp: No such file or directory
+~$ fail && ffffffffffffffffaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiillllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllL@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+execvp: No such file or directory
+execvp: File name too long
+~$  # the above tests long file names          arguments and long    ts of pipes together                connectors together
+~$ exit
+[s%%%%%%%%%%[u[0;32mnlapr001[0;36m@[0;32mcs100[0;36m:[0;32m~/Documents/CS100/rshell/bin[0;95m (exec) [0;36m$[0m exit
+exit
+$ exit
+exit
+
+Script done on Tue 21 Oct 2014 11:02:37 PM PDT

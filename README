@@ -1,0 +1,31 @@
+rshell
+
+OVERVIEW
+
+rshell is a recreation of a UNIX shell, similar to bash. rshell relies on accurate parsing of the data that users enter to the terminal. It should display a prompt, take those commands, and apply the correct logic to them, in order to eventually output the commands as intended, mirroring bash at some points. It appeared to me that the difficulty in the problem would be the use of connectors to successfully operate on commands entered.
+
+DESIGN
+
+rshell is designed in such a way that certain connectors will be handled explicitly by the program after parsing. I attempted as best I could to break main into functions that were symbolic of what they really do, and keep the messy definitions below main. In more time, I could further abstract the look of main and clean up the structure of the program design. The current look is rather messy, though I anticipate that it is fixable. I decided to take each line of input, parse it with boost::tokenizer such that I had each command and connector separate, and then place them in separate arrays that I could pass one at a time to execvp, as separate commands. This allows me to apply the connector logic to them at each execution, hopefully making for a simple handling of anything that can be thrown at it. Through testing, I've found that the shell will accept and handle most outputs the correct way.
+
+BUGS
+
+I attempted as best I could to iron out bugs, but, as with the majority of programs, especially for CS students, there are stil some bugs existing in the program.
+
+-cd will not work, though this is known
+-folders cannot be deleted within rshell (perhaps a feature of execvp?)
+-logic operations on the whole work, execpt for these exceptions(I will use fail to denote commands that should fail, and pass to denote commands that should pass):
+	~fail || fail || fail || fail || ... || pass --> only the first fail occurs, then stops
+	~fail || pass --> fail fails, pass does not occur. These two appear to be an issue with the handling of ||
+	~pass; fail; pass --> after failure, pass does not occur
+	~pass;pass;pass --> the first pass will occur, the second two will fail (this is due to an issue with the way that [command][nospace][connector[nospace][command] is handled. I have a fix in mind.)
+	~Long lists of || and && will break the program, sometimes creating small memory errors that appear to correct themselves. I am puzzled by these.
+	~Parameters with lots of characters will overflow execvp, and alert the user that the amount of characters was too long.
+	~If exit comes after # and is not "touching" another word directly, it will exit the program. Otherwise, exit is functional as likely expected.
+
+NUANCES
+
+There are some particular things to note, for instance, expected behaviors that are slightly different from the behavior of bash.
+
+-exit is its own command, and it is found in the same way that connectors are found, such that, if it is its own word at some point in the command (provided the exit statement should execute based on connectors), it will exit rshell. For instance, pass && exit will exit, pass || exit will not exit, exit && pass will exit, and exit || pass will exit.
+-rshell presents the prompt ~$, rather than username@hostname as bash does. I added the ~ because it conflicts with my personal settings for $, that is, simply $.

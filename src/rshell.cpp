@@ -1,4 +1,5 @@
 #include <iostream>
+#include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -69,6 +70,12 @@ int main()
 		vector<string> temp; //holds each full command between connectors
 		cont_exec = true; //determines whether or not the next command after
 				       //a connector will execute
+		/*
+  		cout << "connectors vector: " << endl;
+		BOOST_FOREACH(string r, connectors) { cout << '[' << r << ']' << endl; }
+		cout << "commands vector: " << endl;
+		BOOST_FOREACH(string r, commands) { cout << '[' << r << ']' << endl; }
+		*/
 		return_status = true; //holds whether or not the past execvp command succeeded
 		for (it = commands.begin() ; it != commands.end(); ) {
 			if (*it == "CONNECTOR") {
@@ -179,10 +186,14 @@ void execute (char** argv) {
 			argc++;
 		}
 		int r = execvp(argv[0], argv);
+		int errsv = errno;
 		if ( r != 0 ) {
 			perror("execvp");
 			return_status = false;
 			exit(EXIT_FAILURE);
+		}
+		if (errsv == ENOENT) {
+			return_status = false;
 		}
 		if( argc != 0 ) {
 			for (unsigned i = 0; i < argc; ++i) {
@@ -214,7 +225,7 @@ void push_to_vectors(string t, string s) {
 			commands.push_back(t.substr(t.find(s) + s.size(), t.size() - 1));
 		}
 		//connector second, reaches the end of token
-		else if (0 < t.find(s) && ( t.find(s) + s.size() == t.size() - 1 ) ) { 
+		else if (0 < t.find(s) && ( t.find(s) + s.size() == t.size() ) ) { 
 			commands.push_back( (t.substr (0, t.find(s) ) ) );
 			commands.push_back("CONNECTOR");
 		}
@@ -222,7 +233,7 @@ void push_to_vectors(string t, string s) {
 		else if ( 0 < t.find(s) && ( t.find(s) + s.size() < t.size() ) ) {
 			commands.push_back( (t.substr (0, t.find(s) ) ) );
 			commands.push_back("CONNECTOR");
-			commands.push_back( (t.substr (t.find(s) + s.size(), t.size() ) ) );
+			commands.push_back( (t.substr (t.find(s) + s.size(), string::npos ) ) );
 		} 
 	}
 }
