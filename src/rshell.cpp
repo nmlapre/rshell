@@ -21,11 +21,12 @@ vector<string> commands;
 //stores each command connector
 vector<string> connectors;
 
+//custom function to allow pop_front for vectors
 template<typename T>
-void pop_front(std::vector<T>& vec)
+void pop_front(std::vector<T>& v)
 {
-    assert(!vec.empty());
-    vec.erase(vec.begin());
+    assert(!v.empty());
+    v.erase(v.begin());
 }
 
 //boolean values used to determine how connectors will interact
@@ -126,7 +127,6 @@ vector<string> tokenize(string user_input) {
 	{
 		tokenList.push_back(t);
 	}
-	//cout << "tokenList.size(): " << tokenList.size() << endl;
 	//deal with connectors, store them into  (vector list)
 	string ex = "exit";
 	string sc = ";";
@@ -152,12 +152,6 @@ vector<string> tokenize(string user_input) {
 			exit(1);
 		}
 	}
-	/*
-	cout << "commands vector: " << endl;
-	BOOST_FOREACH (string c, commands) { cout << '[' << c << ']' << endl; }
-	cout << "connectors vector: " << endl;
-	BOOST_FOREACH (string c, connectors) { cout << '[' << c << ']' << endl; }
-	*/
 	return tokenList;
 }
 
@@ -167,7 +161,6 @@ char** to_char_array(vector<string> tokens) {
 	for(vector<string>::iterator t=tokens.begin(); t!=tokens.end(); t++)
 	{
 		progArgs[count] = strdup(t->c_str()); //change all progArgs to c_strings
-		//cout << progArgs[count] << endl;
        		count++;
    	}
 	return progArgs;
@@ -185,9 +178,7 @@ void execute (char** argv) {
 			arg = arg+0; //suppress warnings
 			argc++;
 		}
-		//cout << "before execvp" << endl;
 		int r = execvp(argv[0], argv);
-		//cout << "after execvp" << endl;
 		if ( r != 0 ) {
 			perror("execvp");
 			return_status = false;
@@ -198,10 +189,6 @@ void execute (char** argv) {
 				delete[] argv[i];
 			}
 		}
-		/*cout << "after delete: " << endl;
-		BOOST_FOREACH (char* arg, argv) {
-			cout << '[' << arg << ']' << endl;
-		}*/
 	} else {
 		if ( wait(0) == -1 ) {
 			perror("wait");
@@ -221,13 +208,21 @@ void push_to_vectors(string t, string s) {
 	{
 		commands.push_back("CONNECTOR");
 	} else { //not a complete, direct match
-		if (0 == t.find(s) ) { //connector first
+		//connector first, touches beginning of token
+		if (0 == t.find(s) ) {
 			commands.push_back("CONNECTOR");
 			commands.push_back(t.substr(t.find(s) + s.size(), t.size() - 1));
 		}
-		else if (0 < t.find(s)) { //connector second
+		//connector second, reaches the end of token
+		else if (0 < t.find(s) && ( t.find(s) + s.size() == t.size() - 1 ) ) { 
 			commands.push_back( (t.substr (0, t.find(s) ) ) );
 			commands.push_back("CONNECTOR");
 		}
+		//connector is in the middle of two commands, no spaces
+		else if ( 0 < t.find(s) && ( t.find(s) + s.size() < t.size() ) ) {
+			commands.push_back( (t.substr (0, t.find(s) ) ) );
+			commands.push_back("CONNECTOR");
+			commands.push_back( (t.substr (t.find(s) + s.size(), t.size() ) ) );
+		} 
 	}
 }
