@@ -21,6 +21,20 @@ vector<string> commands;
 //stores each command connector
 vector<string> connectors;
 
+template<typename T>
+void pop_front(std::vector<T>& vec)
+{
+    assert(!vec.empty());
+    vec.erase(vec.begin());
+}
+
+//boolean values used to determine how connectors will interact
+//with the commands issued between them, e.g. if they will
+//execute given the connector information and the success or
+//failure of the last call to execvp (the previous command)
+bool cont_exec;
+bool return_status;
+
 //clear globals that need clearing (namely our vectors)
 void clear_globals();
 
@@ -52,20 +66,47 @@ int main()
 		vector<string>::iterator it;
 		vector<string>::iterator j = connectors.begin();
 		vector<string> temp; //holds each full command between connectors
-		for (it = commands.begin() ; it != commands.end(); ++it) {
+		cont_exec = true; //determines whether or not the next command after
+				       //a connector will execute
+		return_status = true; //holds whether or not the past execvp command succeeded
+		for (it = commands.begin() ; it != commands.end(); ) {
+			if (*it == "CONNECTOR") {
+				if ( connectors.front() == ";" ) {
+					cont_exec = true;
+					pop_front(connectors);
+				}
+				else if ( connectors.front() == "#" ) {
+					cont_exec = false;
+				}
+				else if ( return_status == true && connectors.front() == "||") {
+					cont_exec = false;
+					pop_front(connectors);
+				}
+				else if ( return_status == true && connectors.front() == "&&") {
+					cont_exec = true;
+					pop_front(connectors);
+				}
+				else if ( return_status == false && connectors.front() == "||") {
+					cont_exec = true;
+					pop_front(connectors);
+				}
+				else if ( return_status == false && connectors.front() == "&&") {
+					cont_exec = false;
+					pop_front(connectors);
+				}
+				++it;
+			}
 			temp.clear();
-			while (*it != "CONNECTOR") {
+			while (it != commands.end() && *it != "CONNECTOR") {
 				temp.push_back(*it);
 				++it;
-				cout << "while loop" << endl;
 			}
-			cout << "before to_char_array" << endl;
 			char** argv = to_char_array(temp);
-			execute(argv);
+			if (cont_exec) {
+				execute(argv);
+			}
 		} 
-		//char** argv = to_char_array(tokens);
 		
-		//execute(argv);
 	}
 }
 
@@ -111,10 +152,12 @@ vector<string> tokenize(string user_input) {
 			exit(1);
 		}
 	}
+	/*
 	cout << "commands vector: " << endl;
 	BOOST_FOREACH (string c, commands) { cout << '[' << c << ']' << endl; }
 	cout << "connectors vector: " << endl;
 	BOOST_FOREACH (string c, connectors) { cout << '[' << c << ']' << endl; }
+	*/
 	return tokenList;
 }
 
@@ -131,32 +174,34 @@ char** to_char_array(vector<string> tokens) {
 }
 
 void execute (char** argv) {
-	int argc = 0;
-	BOOST_FOREACH(char* arg, argv) {
-		argc++;
-	}
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
 		exit(EXIT_FAILURE);
 	}
 	if (pid == 0) {
+		unsigned argc = 0;
+		BOOST_FOREACH(char* arg, argv) {
+			arg = arg+0; //suppress warnings
+			argc++;
+		}
 		//cout << "before execvp" << endl;
 		int r = execvp(argv[0], argv);
 		//cout << "after execvp" << endl;
 		if ( r != 0 ) {
 			perror("execvp");
-			//exit(EXIT_FAILURE);
+			return_status = false;
+			exit(EXIT_FAILURE);
 		}
 		if( argc != 0 ) {
 			for (unsigned i = 0; i < argc; ++i) {
 				delete[] argv[i];
 			}
 		}
-		cout << "after delete: " << endl;
+		/*cout << "after delete: " << endl;
 		BOOST_FOREACH (char* arg, argv) {
 			cout << '[' << arg << ']' << endl;
-		}
+		}*/
 	} else {
 		if ( wait(0) == -1 ) {
 			perror("wait");
