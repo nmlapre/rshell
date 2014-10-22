@@ -1,10 +1,10 @@
 COMPILER = g++
 FLAGS = -Wall -Werror -ansi -pedantic
 
-all:
-	[ -e ./bin ] || mkdir bin
+all: rshell
 
-rshell: 
+rshell: 	
+	[ -e ./bin ] || mkdir bin
 	$(COMPILER) $(FLAGS) ./src/rshell.cpp -o ./bin/rshell
 
 clean:
