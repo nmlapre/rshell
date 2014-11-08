@@ -51,7 +51,7 @@ void part2(char** argv) {
 			perror("open");
 			exit(EXIT_FAILURE);
 		}
-		while (num = read(fdi, buf, 1)) {
+		while ((num = read(fdi, buf, 1))) {
 			if (num == -1) {
 				perror("read");
 				exit(EXIT_FAILURE);
@@ -84,7 +84,7 @@ void part3(char** argv) {
 			perror("open");
 			exit(EXIT_FAILURE);
 		}
-		while (num = read(fdi, buf, BUFSIZ)) {
+		while ((num = read(fdi, buf, BUFSIZ))) {
 			if (num == -1) {
 				perror("read");
 				exit(EXIT_FAILURE);

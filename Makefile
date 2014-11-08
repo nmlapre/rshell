@@ -1,8 +1,8 @@
 bindir=./bin
 opt=-Wall -Werror -ansi -pedantic
 rshellout=-o ./bin/rshell
-rshellsrc=./src/main.cpp
-cpout = ./bin/cp
+rshellsrc=./src/rshell.cpp
+cpout =-o ./bin/cp
 cpsrc = ./src/cp.cpp
 lsout=-o ./bin/ls
 lssrc=./src/ls.cpp
