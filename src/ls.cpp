@@ -1,4 +1,6 @@
 #include <cstdlib>
+#include <stdio.h>
+#include <iomanip>
 #include <sys/types.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -18,31 +20,36 @@ bool long_listing_format    = false;        // -l
 bool recursive              = false;        // -R
 
 //set_flags: sets the various global options according to
-//           the flags passed in by the user
-void set_flags (int, char**);
+//           the flags passed in by the user. Returns the
+//           index of the first non-option argument.
+int set_flags (int, char**);
 
 //usage_error: attempts to print a helpful error message to the user
 //             should they try something illegal
 void usage_error (int);
 
-//display: prints the selected version of ls to the console
-void display ();
+//display: prints the selected version of ls to the console.
+//         Takes the index of the first non-option argument;
+//         assumes that options have been moved to the front.
+void display (int, char**, int);
 
 main (int argc, char** argv)
 {
-    set_flags (argc, argv);
-    display ();
+    int idx = set_flags (argc, argv);     //flags will be moved to beginning of argv
+    display (argc, argv, idx);
 
     return 0;
 }
 
-void set_flags (int argc, char** argv)
+int set_flags (int argc, char** argv)
 {
+    int count = 0;
     //opterr = 0;     //write our own warnings
     while (1)
     {
         int c = getopt (argc, argv, "alR");     //magic!
         if (c == -1) break;
+        ++count;
 
         switch (c)
         {
@@ -59,6 +66,7 @@ void set_flags (int argc, char** argv)
                 usage_error (IMPROPER_FLAGS);
         }
     }
+    return ++count; //index of first non-option argument
 }
 
 void usage_error (int err)
@@ -74,7 +82,7 @@ void usage_error (int err)
     exit (-1);  //mirror ls behavior: if any flags fail, do not print
 }
 
-void display ()
+void display (int argc, char** argv, int idx)
 {
     if (show_hidden && !long_listing_format && !recursive)          // -a
     {
@@ -107,12 +115,32 @@ void display ()
     else
     {
         cout << "default ls" << endl;
+        while (idx < argc)
+        {
+            const char *dirname = argv[idx];
+            DIR *dirp = opendir (dirname);
+            dirent *direntp;
+            while ((direntp = readdir (dirp)))
+            {
+                //cout << "inner while loop" << endl;
+                if (direntp == NULL)
+                {
+                    perror("readdir");
+                    exit(-1);
+                }
+                cout << direntp->d_name << "  ";
+            }
+            if ((closedir (dirp)) == -1)
+            {
+                perror("closedir");
+                exit(-1);
+            }
+            cout << endl;
+            ++idx;
+        }
     }
-    /*char *dirName = ".";
-    DIR *dirp = opendir(dirName);
-    dirent *direntp;
-    while ((direntp = readdir(dirp)))
-        cout << direntp->d_name << endl;  // use stat here to find attributes of file
-    closedir(dirp);
-    */
 }
+//sorting: make an array of c-strings, then sort them for printing?
+//         this could allow for another separate function for printing
+//         maybe that's better
+//         look into: opendir for error messages
