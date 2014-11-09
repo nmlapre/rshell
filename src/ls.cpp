@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <iomanip>
 #include <sys/types.h>
+#include <pwd.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
@@ -163,12 +164,12 @@ void display (int argc, char** argv, int idx)
     //          from the results vector if they don't need to be displayed.
     if (show_hidden && !long_listing_format && !recursive)          // -a
     {
-        cout << "-a" << endl;
+        //cout << "-a" << endl;
         print_basic ();
     }
     else if (!show_hidden && long_listing_format && !recursive)     // -l
     {
-        cout << "-l" << endl;
+        //cout << "-l" << endl;
         for (int i = 0; i < results.size(); ++i)
         {
             results[i].print_long_format ();
@@ -196,7 +197,7 @@ void display (int argc, char** argv, int idx)
     }
     else
     {
-        cout << "default ls" << endl;
+        //cout << "default ls" << endl;
         for (int i = 0; i < results.size(); ++i)
         {
             results[i].print_basic ();
@@ -207,118 +208,16 @@ void display (int argc, char** argv, int idx)
 
 void get_files (int argc, char** argv, int idx)
 {
-    //if the user just enters ls and no directory, it's non-functional
-    if (idx == argc) 
+    while (idx <= argc)
     {
-        const char *dirname = ".";
-        DIR *dirp = opendir (dirname);
-        if (!dirp)
+        const char *dirname;
+        if (idx == argc) 
         {
-            perror("opendir");
-            exit(-1);
+            dirname = ".";
+        } else {
+            dirname = argv[idx];
         }
-        dirent *direntp;
-        while ((direntp = readdir (dirp)))
-        {
-            if (direntp == NULL)
-            {
-                perror("readdir");
-                exit(-1);
-            }
-            string file_name (direntp->d_name);
-            sorted_files.push_back (file_name);
-            Result temp;
-            struct stat sb;
-            int err = stat((file_name).c_str(), &sb);
-            if (err == -1)
-            {
-                perror("stat");
-                exit(-1);
-            }
-            if (!show_hidden && file_name.at(0) == '.') continue;
-            //populate the temp object, then push it to the vector
-            if (S_ISREG (sb.st_mode)) {
-                temp.type = "-";
-            } else if (S_ISDIR (sb.st_mode)) {
-                temp.type = "d";
-            } else if (S_ISCHR (sb.st_mode)) {
-                temp.type = "c";
-            } else if (S_ISBLK (sb.st_mode)) {
-                temp.type = "b";
-            } else if (S_ISFIFO (sb.st_mode)) {
-                temp.type = "p";
-            } else if (S_ISLNK (sb.st_mode)) {
-                temp.type = "l";
-            } else if (S_ISSOCK (sb.st_mode)) {
-                temp.type = "s";
-            } else {
-                temp.type = "-";
-            }
-            string permissions = "";
-            if (sb.st_mode & S_IRUSR) {
-                permissions += "r";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IWUSR) {
-                permissions += "w";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IXUSR) {
-                permissions += "x";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IRGRP) {
-                permissions += "r";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IWGRP) {
-                permissions += "w";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IXGRP) {
-                permissions += "x";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IROTH) {
-                permissions += "r";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IWOTH) {
-                permissions += "w";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IXOTH) {
-                permissions += "x";
-            } else {
-                permissions += "-";
-            }
-            temp.permissions = permissions;
-            temp.links = sb.st_nlink;
-            temp.owner = sb.st_uid;
-            temp.group_owner = sb.st_gid;
-            temp.bytes_size = sb.st_size;
-            temp.time_last_mod = sb.st_mtime;
-            temp.filename = file_name;
-            results.push_back (temp);
-        }
-        if ((closedir (dirp)) == -1)
-        {
-            perror("closedir");
-            exit(-1);
-        }
-    }
-
-    while (idx < argc)
-    {
-        const char *dirname = argv[idx];
+        //const char *dirname = argv[idx];
         DIR *dirp = opendir (dirname);
         if (!dirp)
         {
