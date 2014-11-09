@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <vector>
 #include <string>
+#include <sys/stat.h>
 #include <iostream>
 
 #include "alphanum.hpp"
@@ -26,9 +27,53 @@ bool recursive              = false;        // -R
 // a vector of files, in sorted order
 vector<string> sorted_files;
 
+// a vector of files, in sorted order, with long_listing data
+vector<string> sorted_files_long;
+
+
+class Result
+{
+public:
+    string     type;
+    string     permissions;
+    int        links;
+    string     owner;
+    string     group_owner;
+    int        bytes_size;
+    string     time_last_mod;
+    string     filename;
+
+    //constructors
+    Result () {};
+
+    //methods
+    void print_basic ()
+    {
+        //print basic ls
+        cout << filename << "  ";
+    }
+    void print_basic_hidden ()
+    {
+        ;
+    }
+    void print_long_format ()
+    {
+        //print -l ls
+        cout << type << permissions << " " << links << " " << owner << " "
+             << group_owner << " " << bytes_size << " " << time_last_mod
+             << " " << filename << endl;
+    }
+
+};
+
+// a vector of Results; data from stat
+vector<Result> results;
+
+bool result_sort (Result i, Result j) { return (i.filename < j.filename); }
+
 //isHidden: a helper function to std::remove_if to determine
 //          if a file in the vector is a hidden file
-bool isHidden (string s) { return (s[0] == '.'); }
+bool isHidden (Result s) { return (s.filename.at(0) == '.'); }
 
 //set_flags: sets the various global options according to
 //           the flags passed in by the user. Returns the
@@ -54,6 +99,10 @@ void display (int, char**, int);
 
 //print_basic: prints the formatted sorted list to the console
 void print_basic ();
+
+//print_long_listing: prints the sorted list, in long-listing format
+void print_long_listing ();
+
 
 
 main (int argc, char** argv)
@@ -109,6 +158,9 @@ void usage_error (int err)
 
 void display (int argc, char** argv, int idx)
 {
+    //TODO: implement this logic:
+    //          show_hidden is no longer necessary. I will just remove them
+    //          from the results vector if they don't need to be displayed.
     if (show_hidden && !long_listing_format && !recursive)          // -a
     {
         cout << "-a" << endl;
@@ -117,6 +169,10 @@ void display (int argc, char** argv, int idx)
     else if (!show_hidden && long_listing_format && !recursive)     // -l
     {
         cout << "-l" << endl;
+        for (int i = 0; i < results.size(); ++i)
+        {
+            results[i].print_long_format ();
+        }
     }
     else if (!show_hidden && !long_listing_format && recursive)     // -R
     {
@@ -141,12 +197,125 @@ void display (int argc, char** argv, int idx)
     else
     {
         cout << "default ls" << endl;
-        print_basic ();
+        for (int i = 0; i < results.size(); ++i)
+        {
+            results[i].print_basic ();
+        }
+        cout << endl;
     }
 }
 
 void get_files (int argc, char** argv, int idx)
 {
+    //if the user just enters ls and no directory, it's non-functional
+    if (idx == argc) 
+    {
+        const char *dirname = ".";
+        DIR *dirp = opendir (dirname);
+        if (!dirp)
+        {
+            perror("opendir");
+            exit(-1);
+        }
+        dirent *direntp;
+        while ((direntp = readdir (dirp)))
+        {
+            if (direntp == NULL)
+            {
+                perror("readdir");
+                exit(-1);
+            }
+            string file_name (direntp->d_name);
+            sorted_files.push_back (file_name);
+            Result temp;
+            struct stat sb;
+            int err = stat((file_name).c_str(), &sb);
+            if (err == -1)
+            {
+                perror("stat");
+                exit(-1);
+            }
+            if (!show_hidden && file_name.at(0) == '.') continue;
+            //populate the temp object, then push it to the vector
+            if (S_ISREG (sb.st_mode)) {
+                temp.type = "-";
+            } else if (S_ISDIR (sb.st_mode)) {
+                temp.type = "d";
+            } else if (S_ISCHR (sb.st_mode)) {
+                temp.type = "c";
+            } else if (S_ISBLK (sb.st_mode)) {
+                temp.type = "b";
+            } else if (S_ISFIFO (sb.st_mode)) {
+                temp.type = "p";
+            } else if (S_ISLNK (sb.st_mode)) {
+                temp.type = "l";
+            } else if (S_ISSOCK (sb.st_mode)) {
+                temp.type = "s";
+            } else {
+                temp.type = "-";
+            }
+            string permissions = "";
+            if (sb.st_mode & S_IRUSR) {
+                permissions += "r";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IWUSR) {
+                permissions += "w";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IXUSR) {
+                permissions += "x";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IRGRP) {
+                permissions += "r";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IWGRP) {
+                permissions += "w";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IXGRP) {
+                permissions += "x";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IROTH) {
+                permissions += "r";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IWOTH) {
+                permissions += "w";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IXOTH) {
+                permissions += "x";
+            } else {
+                permissions += "-";
+            }
+            temp.permissions = permissions;
+            temp.links = sb.st_nlink;
+            temp.owner = sb.st_uid;
+            temp.group_owner = sb.st_gid;
+            temp.bytes_size = sb.st_size;
+            temp.time_last_mod = sb.st_mtime;
+            temp.filename = file_name;
+            results.push_back (temp);
+        }
+        if ((closedir (dirp)) == -1)
+        {
+            perror("closedir");
+            exit(-1);
+        }
+    }
+
     while (idx < argc)
     {
         const char *dirname = argv[idx];
@@ -166,6 +335,87 @@ void get_files (int argc, char** argv, int idx)
             }
             string file_name (direntp->d_name);
             sorted_files.push_back (file_name);
+            Result temp;
+            struct stat sb;
+            int err = stat((file_name).c_str(), &sb);
+            if (err == -1)
+            {
+                perror("stat");
+                exit(-1);
+            }
+            if (!show_hidden && file_name.at(0) == '.') continue;
+            //populate the temp object, then push it to the vector
+            if (S_ISREG (sb.st_mode)) {
+                temp.type = "-";
+            } else if (S_ISDIR (sb.st_mode)) {
+                temp.type = "d";
+            } else if (S_ISCHR (sb.st_mode)) {
+                temp.type = "c";
+            } else if (S_ISBLK (sb.st_mode)) {
+                temp.type = "b";
+            } else if (S_ISFIFO (sb.st_mode)) {
+                temp.type = "p";
+            } else if (S_ISLNK (sb.st_mode)) {
+                temp.type = "l";
+            } else if (S_ISSOCK (sb.st_mode)) {
+                temp.type = "s";
+            } else {
+                temp.type = "-";
+            }
+            string permissions = "";
+            if (sb.st_mode & S_IRUSR) {
+                permissions += "r";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IWUSR) {
+                permissions += "w";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IXUSR) {
+                permissions += "x";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IRGRP) {
+                permissions += "r";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IWGRP) {
+                permissions += "w";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IXGRP) {
+                permissions += "x";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IROTH) {
+                permissions += "r";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IWOTH) {
+                permissions += "w";
+            } else {
+                permissions += "-";
+            }
+            if (sb.st_mode & S_IXOTH) {
+                permissions += "x";
+            } else {
+                permissions += "-";
+            }
+            temp.permissions = permissions;
+            temp.links = sb.st_nlink;
+            temp.owner = sb.st_uid;
+            temp.group_owner = sb.st_gid;
+            temp.bytes_size = sb.st_size;
+            temp.time_last_mod = sb.st_mtime;
+            temp.filename = file_name;
+            results.push_back (temp);
         }
         if ((closedir (dirp)) == -1)
         {
@@ -173,10 +423,6 @@ void get_files (int argc, char** argv, int idx)
             exit(-1);
         }
         ++idx;
-    }
-    
-    if (!show_hidden) {
-        sorted_files.erase (remove_if (sorted_files.begin(), sorted_files.end(), isHidden));
     }
 }
 
@@ -186,6 +432,7 @@ void sort_files ()
     //      to match the behavior of the original ls.
     //      ASCIIbetical sort sucks...
     sort (sorted_files.begin(), sorted_files.end());
+    sort (results.begin(), results.end(), result_sort);
 }
 
 void print_basic ()
@@ -203,4 +450,9 @@ void print_basic ()
 
     }
     cout << endl;
+}
+
+void print_long_listing ()
+{
+
 }
