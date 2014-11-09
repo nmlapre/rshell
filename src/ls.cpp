@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdlib>
 #include <stdio.h>
 #include <iomanip>
@@ -9,6 +10,8 @@
 #include <string>
 #include <iostream>
 
+#include "alphanum.hpp"
+
 #define IMPROPER_FLAGS  1
 #define FAILURE_EXIT    2
 
@@ -19,10 +22,25 @@ bool show_hidden            = false;        // -a
 bool long_listing_format    = false;        // -l
 bool recursive              = false;        // -R
 
+//sort_func: a function passed to std::sort. This ensures
+//           that sort is applied alphabetically, not based
+//           on ASCII value alone
+
+// a vector of files, in sorted order
+vector<string> sorted_files;
+
 //set_flags: sets the various global options according to
 //           the flags passed in by the user. Returns the
 //           index of the first non-option argument.
 int set_flags (int, char**);
+
+//get_files: populates sorted_files with the files, in order,
+//            ready for printing, that readdir returns.
+void get_files (int, char**, int);
+
+//sort_files: sorts the files in sorted_files, readying them
+//            for printing
+void sort_files ();
 
 //usage_error: attempts to print a helpful error message to the user
 //             should they try something illegal
@@ -36,6 +54,8 @@ void display (int, char**, int);
 main (int argc, char** argv)
 {
     int idx = set_flags (argc, argv);     //flags will be moved to beginning of argv
+    get_files (argc, argv, idx);
+    sort_files ();
     display (argc, argv, idx);
 
     return 0;
@@ -115,32 +135,48 @@ void display (int argc, char** argv, int idx)
     else
     {
         cout << "default ls" << endl;
-        while (idx < argc)
-        {
-            const char *dirname = argv[idx];
-            DIR *dirp = opendir (dirname);
-            dirent *direntp;
-            while ((direntp = readdir (dirp)))
-            {
-                //cout << "inner while loop" << endl;
-                if (direntp == NULL)
-                {
-                    perror("readdir");
-                    exit(-1);
-                }
-                cout << direntp->d_name << "  ";
-            }
-            if ((closedir (dirp)) == -1)
-            {
-                perror("closedir");
-                exit(-1);
-            }
-            cout << endl;
-            ++idx;
+        for (int i = 0; i < sorted_files.size(); ++i) {
+            cout << sorted_files[i] << "  ";
         }
+        cout << endl;
     }
 }
-//sorting: make an array of c-strings, then sort them for printing?
-//         this could allow for another separate function for printing
-//         maybe that's better
-//         look into: opendir for error messages
+
+void get_files (int argc, char** argv, int idx)
+{
+    while (idx < argc)
+    {
+        const char *dirname = argv[idx];
+        DIR *dirp = opendir (dirname);
+        if (!dirp)
+        {
+            perror("opendir");
+            exit(-1);
+        }
+        dirent *direntp;
+        while ((direntp = readdir (dirp)))
+        {
+            if (direntp == NULL)
+            {
+                perror("readdir");
+                exit(-1);
+            }
+            string file_name (direntp->d_name);
+            sorted_files.push_back (file_name);
+        }
+        if ((closedir (dirp)) == -1)
+        {
+            perror("closedir");
+            exit(-1);
+        }
+        ++idx;
+    }
+}
+
+void sort_files ()
+{
+    //TODO: think about implementing a natural sorting algorithm
+    //      to match the behavior of the original ls.
+    //      ASCIIbetical sort sucks...
+    sort (sorted_files.begin(), sorted_files.end());
+}
