@@ -14,6 +14,7 @@
 
 #define IMPROPER_FLAGS  1
 #define FAILURE_EXIT    2
+#define LINE_SIZE       80
 
 using namespace std;
 
@@ -22,12 +23,12 @@ bool show_hidden            = false;        // -a
 bool long_listing_format    = false;        // -l
 bool recursive              = false;        // -R
 
-//sort_func: a function passed to std::sort. This ensures
-//           that sort is applied alphabetically, not based
-//           on ASCII value alone
-
 // a vector of files, in sorted order
 vector<string> sorted_files;
+
+//isHidden: a helper function to std::remove_if to determine
+//          if a file in the vector is a hidden file
+bool isHidden (string s) { return (s[0] == '.'); }
 
 //set_flags: sets the various global options according to
 //           the flags passed in by the user. Returns the
@@ -50,6 +51,10 @@ void usage_error (int);
 //         Takes the index of the first non-option argument;
 //         assumes that options have been moved to the front.
 void display (int, char**, int);
+
+//print_basic: prints the formatted sorted list to the console
+void print_basic ();
+
 
 main (int argc, char** argv)
 {
@@ -107,6 +112,7 @@ void display (int argc, char** argv, int idx)
     if (show_hidden && !long_listing_format && !recursive)          // -a
     {
         cout << "-a" << endl;
+        print_basic ();
     }
     else if (!show_hidden && long_listing_format && !recursive)     // -l
     {
@@ -135,10 +141,7 @@ void display (int argc, char** argv, int idx)
     else
     {
         cout << "default ls" << endl;
-        for (int i = 0; i < sorted_files.size(); ++i) {
-            cout << sorted_files[i] << "  ";
-        }
-        cout << endl;
+        print_basic ();
     }
 }
 
@@ -171,6 +174,10 @@ void get_files (int argc, char** argv, int idx)
         }
         ++idx;
     }
+    
+    if (!show_hidden) {
+        sorted_files.erase (remove_if (sorted_files.begin(), sorted_files.end(), isHidden));
+    }
 }
 
 void sort_files ()
@@ -179,4 +186,21 @@ void sort_files ()
     //      to match the behavior of the original ls.
     //      ASCIIbetical sort sucks...
     sort (sorted_files.begin(), sorted_files.end());
+}
+
+void print_basic ()
+{
+    string printed = "";
+    for (int i = 0; i < sorted_files.size(); ++i) {
+        printed += (sorted_files[i] + "  ");
+        if (printed.length() >= LINE_SIZE)
+        {
+            cout << endl;
+            printed = "";
+            printed += (sorted_files[i] + "  ");
+        }
+        cout << sorted_files[i] << "  ";
+
+    }
+    cout << endl;
 }
