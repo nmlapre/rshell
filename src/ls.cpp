@@ -105,7 +105,7 @@ void display (int, char**, int);
 int determine_index (int, char**);
 
 
-main (int argc, char** argv)
+int main (int argc, char** argv)
 {
     set_flags (argc, argv);     //flags will be moved to beginning of argv
     // if recursive, dup (?)
@@ -160,7 +160,7 @@ void display (int argc, char** argv, int idx)
 {
     if (!long_listing_format && !recursive)          // -a, default
     {
-        for (int i = 0; i < results.size(); ++i)
+        for (unsigned i = 0; i < results.size(); ++i)
         {
             results[i].print_basic ();
         }
@@ -168,7 +168,7 @@ void display (int argc, char** argv, int idx)
     }
     else if (long_listing_format && !recursive)     // -l, -al
     {
-        for (int i = 0; i < results.size(); ++i)
+        for (unsigned i = 0; i < results.size(); ++i)
         {
             results[i].print_long_format ();
         }
@@ -341,7 +341,7 @@ void sort_files ()
 void print_basic ()
 {
     string printed = "";
-    for (int i = 0; i < sorted_files.size(); ++i) {
+    for (unsigned i = 0; i < sorted_files.size(); ++i) {
         printed += (sorted_files[i] + "  ");
         if (printed.length() >= LINE_SIZE)
         {
