@@ -1,9 +1,12 @@
 #include <algorithm>
 #include <cstdlib>
+#include <ctime>
+#include <cstring>
 #include <stdio.h>
 #include <iomanip>
 #include <sys/types.h>
 #include <pwd.h>
+#include <grp.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
@@ -211,8 +214,7 @@ void get_files (int argc, char** argv, int idx)
     while (idx <= argc)
     {
         const char *dirname;
-        if (idx == argc) 
-        {
+        if (idx == argc) {
             dirname = ".";
         } else {
             dirname = argv[idx];
@@ -309,10 +311,27 @@ void get_files (int argc, char** argv, int idx)
             }
             temp.permissions = permissions;
             temp.links = sb.st_nlink;
-            temp.owner = sb.st_uid;
-            temp.group_owner = sb.st_gid;
+            struct passwd *pb = getpwuid (sb.st_uid);
+            if (pb == NULL)
+            {
+                perror("getpwuid");
+                exit(-1);
+            }
+            temp.owner = pb->pw_name;
+            struct group *gb = getgrgid (sb.st_gid);
+            if (gb == NULL)
+            {
+                perror("getgrgid");
+                exit(-1);
+            }
+            temp.group_owner = gb->gr_name;
             temp.bytes_size = sb.st_size;
-            temp.time_last_mod = sb.st_mtime;
+            time_t rawtime = sb.st_mtime;
+            struct tm *timeinfo;
+            timeinfo = localtime (&rawtime);
+            char *t = asctime (timeinfo);
+            t [strlen(t) - 1] = 0;
+            temp.time_last_mod = t;
             temp.filename = file_name;
             results.push_back (temp);
         }
@@ -349,9 +368,4 @@ void print_basic ()
 
     }
     cout << endl;
-}
-
-void print_long_listing ()
-{
-
 }
