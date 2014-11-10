@@ -168,7 +168,11 @@ void display (int argc, char** argv, int idx)
     if (show_hidden && !long_listing_format && !recursive)          // -a
     {
         //cout << "-a" << endl;
-        print_basic ();
+        for (int i = 0; i < results.size(); ++i)
+        {
+            results[i].print_basic ();
+        }
+        cout << endl;
     }
     else if (!show_hidden && long_listing_format && !recursive)     // -l
     {
@@ -185,6 +189,11 @@ void display (int argc, char** argv, int idx)
     else if (show_hidden && long_listing_format && !recursive)      // -al
     {
         cout << "al" << endl;
+        for (int i = 0; i < results.size(); ++i)
+        {
+            results[i].print_basic ();
+        }
+        cout << endl;
     }
     else if (show_hidden && !long_listing_format && recursive)      // -aR
     {
@@ -205,21 +214,24 @@ void display (int argc, char** argv, int idx)
         {
             results[i].print_basic ();
         }
-        cout << endl;
+        cout << endl;       //start prompt on new line
     }
 }
 
 void get_files (int argc, char** argv, int idx)
 {
+    bool first_iteration = true;
     while (idx <= argc)
     {
         const char *dirname;
-        if (idx == argc) {
+        if (idx == argc && first_iteration) {
             dirname = ".";
+        } else if (idx == argc && !first_iteration) {
+            break;
         } else {
             dirname = argv[idx];
+            first_iteration = false;
         }
-        //const char *dirname = argv[idx];
         DIR *dirp = opendir (dirname);
         if (!dirp)
         {
@@ -234,11 +246,15 @@ void get_files (int argc, char** argv, int idx)
                 perror("readdir");
                 exit(-1);
             }
+            string file_name_s (direntp->d_name);
             string file_name (direntp->d_name);
-            sorted_files.push_back (file_name);
+            // pass a modified path to stat
+            file_name_s = dirname; //argv[idx];
+            file_name_s += "/";
+            file_name_s += direntp->d_name;
             Result temp;
             struct stat sb;
-            int err = stat((file_name).c_str(), &sb);
+            int err = stat((file_name_s).c_str(), &sb);
             if (err == -1)
             {
                 perror("stat");
