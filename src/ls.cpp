@@ -82,7 +82,7 @@ bool isHidden (Result s) { return (s.filename.at(0) == '.'); }
 //set_flags: sets the various global options according to
 //           the flags passed in by the user. Returns the
 //           index of the first non-option argument.
-int set_flags (int, char**);
+void set_flags (int, char**);
 
 //get_files: populates sorted_files with the files, in order,
 //            ready for printing, that readdir returns.
@@ -101,17 +101,16 @@ void usage_error (int);
 //         assumes that options have been moved to the front.
 void display (int, char**, int);
 
-//print_basic: prints the formatted sorted list to the console
-void print_basic ();
-
-//print_long_listing: prints the sorted list, in long-listing format
-void print_long_listing ();
-
+//determine_index: finds the index of the first non-option argument
+int determine_index (int, char**);
 
 
 main (int argc, char** argv)
 {
-    int idx = set_flags (argc, argv);     //flags will be moved to beginning of argv
+    set_flags (argc, argv);     //flags will be moved to beginning of argv
+    // if recursive, dup (?)
+    // maybe use ftw (file tree walk)
+    int idx = determine_index (argc, argv); //index of first non-opt. char.
     get_files (argc, argv, idx);
     sort_files ();
     display (argc, argv, idx);
@@ -119,15 +118,13 @@ main (int argc, char** argv)
     return 0;
 }
 
-int set_flags (int argc, char** argv)
+void set_flags (int argc, char** argv)
 {
-    int count = 0;
     //opterr = 0;     //write our own warnings
     while (1)
     {
         int c = getopt (argc, argv, "alR");     //magic!
         if (c == -1) break;
-        ++count;
 
         switch (c)
         {
@@ -144,7 +141,6 @@ int set_flags (int argc, char** argv)
                 usage_error (IMPROPER_FLAGS);
         }
     }
-    return ++count; //index of first non-option argument
 }
 
 void usage_error (int err)
@@ -162,59 +158,32 @@ void usage_error (int err)
 
 void display (int argc, char** argv, int idx)
 {
-    //TODO: implement this logic:
-    //          show_hidden is no longer necessary. I will just remove them
-    //          from the results vector if they don't need to be displayed.
-    if (show_hidden && !long_listing_format && !recursive)          // -a
+    if (!long_listing_format && !recursive)          // -a, default
     {
-        //cout << "-a" << endl;
         for (int i = 0; i < results.size(); ++i)
         {
             results[i].print_basic ();
         }
         cout << endl;
     }
-    else if (!show_hidden && long_listing_format && !recursive)     // -l
+    else if (long_listing_format && !recursive)     // -l, -al
     {
-        //cout << "-l" << endl;
         for (int i = 0; i < results.size(); ++i)
         {
             results[i].print_long_format ();
         }
     }
-    else if (!show_hidden && !long_listing_format && recursive)     // -R
+    else if (!long_listing_format && recursive)     // -R, -aR
     {
-        cout << "R" << endl;
+        cout << "R, aR" << endl;
     }
-    else if (show_hidden && long_listing_format && !recursive)      // -al
+    else if (long_listing_format && recursive)      // -lR, -alR
     {
-        cout << "al" << endl;
-        for (int i = 0; i < results.size(); ++i)
-        {
-            results[i].print_basic ();
-        }
-        cout << endl;
-    }
-    else if (show_hidden && !long_listing_format && recursive)      // -aR
-    {
-        cout << "aR" << endl;
-    }
-    else if (!show_hidden && long_listing_format && recursive)      // -lR
-    {
-        cout << "lR" << endl;
-    }
-    else if (show_hidden && long_listing_format && recursive)       // -alR
-    {
-        cout << "alR" << endl;
+        cout << "lR, alR" << endl;
     }
     else
     {
-        //cout << "default ls" << endl;
-        for (int i = 0; i < results.size(); ++i)
-        {
-            results[i].print_basic ();
-        }
-        cout << endl;       //start prompt on new line
+        cout << "An error has occured! Flags were not caught." << endl;
     }
 }
 
@@ -384,4 +353,13 @@ void print_basic ()
 
     }
     cout << endl;
+}
+
+int determine_index (int argc, char** argv)
+{
+    int idx = 1; //start at one for argv[0] offset
+    for (int i = 1; i < argc; ++i) {
+        if (argv[i][0] == '-') ++idx;
+    }
+    return idx;
 }
