@@ -28,12 +28,6 @@ bool show_hidden            = false;        // -a
 bool long_listing_format    = false;        // -l
 bool recursive              = false;        // -R
 
-// a vector of files, in sorted order
-vector<string> sorted_files;
-
-// a vector of files, in sorted order, with long_listing data
-vector<string> sorted_files_long;
-
 
 class Result
 {
@@ -48,7 +42,10 @@ public:
     string     filename;
 
     //constructors
-    Result () {};
+    Result () {}; //cppcheck warning with --enable=warning
+
+    //destructor
+    ~Result () {};
 
     //methods
     void print_basic ()
@@ -56,7 +53,11 @@ public:
         //print basic ls
         cout << filename << "  ";
     }
-    void print_basic_hidden ()
+    void get_recursive ()
+    {
+        ;
+    }
+    void print_recursive ()
     {
         ;
     }
@@ -70,7 +71,22 @@ public:
 
 };
 
-// a vector of Results; data from stat
+class Directory
+{
+public:
+    vector<Result> files;
+    string dir_name;
+
+    //constructore
+    Directory () {};
+
+    Directory (string dir_name)
+     : dir_name(dir_name)
+    { }
+};
+
+// a vector of directories; data from stat
+vector<Directory> dirs;
 vector<Result> results;
 
 bool result_sort (Result i, Result j) { return (i.filename < j.filename); }
@@ -160,17 +176,31 @@ void display (int argc, char** argv, int idx)
 {
     if (!long_listing_format && !recursive)          // -a, default
     {
-        for (unsigned i = 0; i < results.size(); ++i)
+        for (unsigned i = 0; i < dirs.size(); ++i)
         {
-            results[i].print_basic ();
+            if (dirs.size() > 1) {
+                cout << dirs[i].dir_name << ": " << endl;
+            }
+            for (unsigned j = 0; j < dirs[i].files.size(); ++j)
+            {
+                dirs[i].files[j].print_basic ();
+            }
+            cout << endl;
+            if ( (i + 1) != dirs.size() ) cout << endl;
         }
-        cout << endl;
     }
     else if (long_listing_format && !recursive)     // -l, -al
     {
-        for (unsigned i = 0; i < results.size(); ++i)
+        for (unsigned i = 0; i < dirs.size(); ++i)
         {
-            results[i].print_long_format ();
+            if (dirs.size() > 1) {
+                cout << dirs[i].dir_name << ": " << endl;
+            }
+            for (unsigned j = 0; j < dirs[i].files.size(); ++j)
+            {
+                dirs[i].files[j].print_long_format ();
+            }
+            if ( (i + 1) != dirs.size() ) cout << endl;
         }
     }
     else if (!long_listing_format && recursive)     // -R, -aR
@@ -194,7 +224,7 @@ void get_files (int argc, char** argv, int idx)
     {
         const char *dirname;
         if (idx == argc && first_iteration) {
-            dirname = ".";
+            dirname = "./"; // added a slash (MAY BREAK THINGS)
         } else if (idx == argc && !first_iteration) {
             break;
         } else {
@@ -208,6 +238,12 @@ void get_files (int argc, char** argv, int idx)
             exit(-1);
         }
         dirent *direntp;
+
+        //create a temp Directory object
+        //Directory tempdir (dirname);
+        //cout << "dirname: " << tempdir.dir_name << endl;
+
+        //construct one file (result)
         while ((direntp = readdir (dirp)))
         {
             if (direntp == NULL)
@@ -318,13 +354,25 @@ void get_files (int argc, char** argv, int idx)
             t [strlen(t) - 1] = 0;
             temp.time_last_mod = t;
             temp.filename = file_name;
-            results.push_back (temp);
+            results.push_back (temp);           //fill up results with all for this dir
+            //tempdir.files.push_back (temp);
+            //TESTING~
+            //temp.print_long_format();
         }
         if ((closedir (dirp)) == -1)
         {
             perror("closedir");
             exit(-1);
         }
+        //now, we have a filled results array
+        //we must 1) create a Directory with that array as files, and
+        //        2) push that Directory back onto the dirs vector
+        //        3) clear out the results vector
+        Directory tempdir (dirname);
+        tempdir.files = results;
+        //alternately, to construct the array in each directory, try for loop (each result)
+        dirs.push_back (tempdir);
+        results.clear ();
         ++idx;
     }
 }
@@ -334,25 +382,11 @@ void sort_files ()
     //TODO: think about implementing a natural sorting algorithm
     //      to match the behavior of the original ls.
     //      ASCIIbetical sort sucks...
-    sort (sorted_files.begin(), sorted_files.end());
-    sort (results.begin(), results.end(), result_sort);
-}
-
-void print_basic ()
-{
-    string printed = "";
-    for (unsigned i = 0; i < sorted_files.size(); ++i) {
-        printed += (sorted_files[i] + "  ");
-        if (printed.length() >= LINE_SIZE)
-        {
-            cout << endl;
-            printed = "";
-            printed += (sorted_files[i] + "  ");
-        }
-        cout << sorted_files[i] << "  ";
-
+    for (int i = 0; i < dirs.size (); ++i) 
+    {
+        //sort each passed-in directory's files separately
+        sort (dirs[i].files.begin(), dirs[i].files.end(), result_sort);
     }
-    cout << endl;
 }
 
 int determine_index (int argc, char** argv)
