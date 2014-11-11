@@ -2,7 +2,11 @@
 #include <cstdlib>
 #include <ctime>
 #include <cstring>
+#include <ftw.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
 #include <iomanip>
 #include <sys/types.h>
 #include <pwd.h>
@@ -17,6 +21,7 @@
 
 #include "alphanum.hpp"
 
+//#define _XOPEN_SOURCE   500       //causes an error
 #define IMPROPER_FLAGS  1
 #define FAILURE_EXIT    2
 #define LINE_SIZE       80
@@ -28,6 +33,7 @@ bool show_hidden            = false;        // -a
 bool long_listing_format    = false;        // -l
 bool recursive              = false;        // -R
 
+bool first_run              = true;         // assists in printing recursively
 
 class Result
 {
@@ -59,7 +65,20 @@ public:
     }
     void print_recursive ()
     {
-        ;
+        /*
+        for (int i = 0; i < dirs.size(); ++i)
+        {
+            for (int j = 0; j < dirs[i].size(); ++j)
+            {
+                if (dirs[i].files[j].permissions[0] == 'd') //dir found
+                {
+                    cout << "dir found!" << endl;
+                    //add another object to the dir list
+                    //reset i and j to 0 (scan again)
+                }
+            }
+        }
+        */
     }
     void print_long_format ()
     {
@@ -84,6 +103,45 @@ public:
      : dir_name(dir_name)
     { }
 };
+
+//a display function to be passed to nftw (file tree walk) for recursive printing
+int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ftwbuf)
+{
+    /* if (strlen (fpath) != 0 && fpath[0] == '.' && !show_hidden)
+    {
+        return 0;
+    }
+    */
+    if (S_ISDIR (sb->st_mode))
+    {
+        if (first_run) {
+            cout << fpath << ": " << endl;
+            first_run = false;
+        } else {
+            cout << "\n\n" << fpath << ": " << endl;
+        }
+    }
+    if (fpath == (fpath + ftwbuf->base)/* the directory equals the first entry */)
+    {
+        //don't print
+        return 0;
+    } else {
+        printf ("%s  ", fpath + ftwbuf->base);
+    }
+    return 0; // move to the next file
+}
+
+//a display function to be passed to nftw for recursive printing, long listing form
+int display_long (const char* fpath, const struct stat* sb, int tflag, struct FTW ftwbuf)
+{
+    //TODO: print everything in long listing format (also a huge printf)
+    if (S_ISDIR (sb->st_mode))
+    {
+        cout << "\n" << fpath << ": " << endl;
+    }
+    //printf ("%s%s %d %s %s %d %s %s", )
+    return 0;
+}
 
 // a vector of directories; data from stat
 vector<Directory> dirs;
@@ -205,7 +263,18 @@ void display (int argc, char** argv, int idx)
     }
     else if (!long_listing_format && recursive)     // -R, -aR
     {
-        cout << "R, aR" << endl;
+        //cout << "R, aR" << endl;
+        int flags = 0;
+        //for each dir entered
+        for (int i = 0; i < dirs.size(); ++i) {
+           //recurse over all subdirectories (just by name)
+           if (nftw (dirs[i].dir_name.c_str(), display, 20, flags) == -1)
+           {
+               perror ("nftw");
+               exit (EXIT_FAILURE);
+           }
+           if ( (i + 1) == dirs.size() ) cout << endl;
+        }
     }
     else if (long_listing_format && recursive)      // -lR, -alR
     {
@@ -238,10 +307,6 @@ void get_files (int argc, char** argv, int idx)
             exit(-1);
         }
         dirent *direntp;
-
-        //create a temp Directory object
-        //Directory tempdir (dirname);
-        //cout << "dirname: " << tempdir.dir_name << endl;
 
         //construct one file (result)
         while ((direntp = readdir (dirp)))
@@ -355,9 +420,6 @@ void get_files (int argc, char** argv, int idx)
             temp.time_last_mod = t;
             temp.filename = file_name;
             results.push_back (temp);           //fill up results with all for this dir
-            //tempdir.files.push_back (temp);
-            //TESTING~
-            //temp.print_long_format();
         }
         if ((closedir (dirp)) == -1)
         {
@@ -370,7 +432,6 @@ void get_files (int argc, char** argv, int idx)
         //        3) clear out the results vector
         Directory tempdir (dirname);
         tempdir.files = results;
-        //alternately, to construct the array in each directory, try for loop (each result)
         dirs.push_back (tempdir);
         results.clear ();
         ++idx;
