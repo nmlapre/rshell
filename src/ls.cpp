@@ -110,23 +110,23 @@ public:
         {
             if (filename[0] == '.') //hidden found
             {
-                cout << "\033[34;40m" << filename << "\033[0m";
+                cout << "\033[1;34;40m" << filename << "\033[0m";
             } else {
-                cout << "\033[34m" << filename << "\033[0m";
+                cout << "\033[1;34m" << filename << "\033[0m";
             }
         }
         else if (permissions.find('x') != string::npos) //executable found
         {
             if (filename[0] == '.')
             {
-                cout << "\033[32;40m" << filename << "\033[0m";
+                cout << "\033[1;32;40m" << filename << "\033[0m";
             } else {
-                cout << "\033[32m" << filename << "\033[0m";
+                cout << "\033[1;32m" << filename << "\033[0m";
             }
         } else {
             if (filename[0] == '.')
             {
-                cout << "\033[32;40m" << filename << "\033[0m";
+                cout << "\033[1;32;40m" << filename << "\033[0m";
             } else {
                 cout << filename;
             }
@@ -143,23 +143,23 @@ public:
         {
             if (filename[0] == '.')
             {
-                cout << "\033[34;40m" << filename << "\033[0m" << endl;
+                cout << "\033[1;34;40m" << filename << "\033[0m" << endl;
             } else {
-                cout << "\033[34m" << filename << "\033[0m" << endl;
+                cout << "\033[1;34m" << filename << "\033[0m" << endl;
             }
         }
         else if (permissions.find('x') != string::npos) //executable found
         {
             if (filename[0] == '.')
             {
-                cout << "\033[32;40m" << filename << "\033[0m" << endl;
+                cout << "\033[1;32;40m" << filename << "\033[0m" << endl;
             } else {
-                cout << "\033[32m" << filename << "\033[0m" << endl;
+                cout << "\033[1;32m" << filename << "\033[0m" << endl;
             }
         } else {
             if (filename[0] == '.')
             {
-                cout << "\033[32;40m" << filename << "\033[0m" << endl;
+                cout << "\033[1;32;40m" << filename << "\033[0m" << endl;
             } else {
                 cout << filename << endl;
             }
@@ -200,13 +200,87 @@ int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ft
             cout << "\n\n" << fpath << ": " << endl;
         }
     }
+
+    string type =  (S_ISREG (sb->st_mode) ? "-" :
+                    S_ISDIR (sb->st_mode) ? "d" :
+                    S_ISCHR (sb->st_mode) ? "c" :
+                    S_ISBLK (sb->st_mode) ? "b" :
+                    S_ISFIFO (sb->st_mode) ? "p" :
+                    S_ISLNK (sb->st_mode) ? "l" :
+                    S_ISSOCK (sb->st_mode) ? "s" : "-");
+    string permissions = "";
+    permissions += ( (sb->st_mode & S_IRUSR) ? 'r' : '-');
+    permissions += ( (sb->st_mode & S_IWUSR) ? 'w' : '-');
+    permissions += ( (sb->st_mode & S_IXUSR) ? 'x' : '-');
+    permissions += ( (sb->st_mode & S_IRGRP) ? 'r' : '-');
+    permissions += ( (sb->st_mode & S_IWGRP) ? 'w' : '-');
+    permissions += ( (sb->st_mode & S_IXGRP) ? 'x' : '-');
+    permissions += ( (sb->st_mode & S_IROTH) ? 'r' : '-');
+    permissions += ( (sb->st_mode & S_IWOTH) ? 'w' : '-');
+    permissions += ( (sb->st_mode & S_IXOTH) ? 'x' : '-');
+    int links = sb->st_nlink;
+    struct passwd* pb = getpwuid (sb->st_uid);
+    if (pb == NULL)
+    {
+        perror ("getpwuid");
+        exit (EXIT_FAILURE);
+    }
+    string owner = pb->pw_name;
+    struct group* gb = getgrgid (sb->st_gid);
+    if (gb == NULL)
+    {
+        perror ("getgrgid");
+        exit(EXIT_FAILURE);
+    }
+    string group_owner = gb->gr_name;
+    int bytes_size = sb->st_size;
+    time_t rawtime = sb->st_mtime;
+    struct tm* timeinfo;
+    timeinfo = localtime (&rawtime);
+    char *t = asctime (timeinfo);
+    t [strlen(t) - 1] = 0;
+    string time_last_mod = t;
+    string file_name = fpath + ftwbuf->base;
+
+    if (file_name[0] == '.' && !show_hidden) 
+    {
+        return 0;
+    }
+
     if (fpath == (fpath + ftwbuf->base)/* the directory equals the first entry */)
     {
         //don't print
         return 0;
     } else {
-        printf ("%s  ", fpath + ftwbuf->base);
+
+        if (type == "d") //dir found
+        {
+            if (file_name[0] == '.')
+            {
+                cout << "\033[1;34;40m" << file_name << "\033[0m";
+            } else {
+                cout << "\033[1;34m" << file_name << "\033[0m";
+            }
+        }
+        else if (permissions.find('x') != string::npos) //executable found
+        {
+            if (file_name[0] == '.')
+            {
+                cout << "\033[1;32;40m" << file_name << "\033[0m";
+            } else {
+                cout << "\033[1;32m" << file_name << "\033[0m";
+            }
+        } else {
+            if (file_name[0] == '.')
+            {
+                cout << "\033[1;32;40m" << file_name << "\033[0m";
+            } else {
+                cout << file_name;
+            }
+        }
     }
+    cout << "  ";
+    
     return 0; // move to the next file
 }
 
@@ -267,9 +341,33 @@ int display_long (const char* fpath, const struct stat* sb, int tflag, struct FT
 
     //cout << "FPATH = " << fpath << endl;
     //cout << file_name << endl;
-
-    print_color_file (fpath, file_name);
-
+    
+    if (type == "d") //dir found
+    {
+        if (file_name[0] == '.')
+        {
+            cout << "\033[1;34;40m" << file_name << "\033[0m" << endl;
+        } else {
+            cout << "\033[1;34m" << file_name << "\033[0m" << endl;
+        }
+    }
+    else if (permissions.find('x') != string::npos) //executable found
+    {
+        if (file_name[0] == '.')
+        {
+            cout << "\033[1;32;40m" << file_name << "\033[0m" << endl;
+        } else {
+            cout << "\033[1;32m" << file_name << "\033[0m" << endl;
+        }
+    } else {
+        if (file_name[0] == '.')
+        {
+            cout << "\033[1;32;40m" << file_name << "\033[0m" << endl;
+        } else {
+            cout << file_name << endl;
+        }
+    }
+    
     return 0;
 }
 
