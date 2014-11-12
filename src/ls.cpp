@@ -18,7 +18,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <iostream>
- 
+
 //#include "alphanum.hpp"
 
 //#define _XOPEN_SOURCE   500       //causes an error
