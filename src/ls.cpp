@@ -35,6 +35,54 @@ bool recursive              = false;        // -R
 
 bool first_run              = true;         // assists in printing recursively
 
+//determines if the filepath specified by fpath is a directory
+bool is_dir (string fpath) {
+    struct stat* sb;
+    if ((stat (fpath.c_str(), sb)) == -1) { perror ("stat"); }
+    return S_ISDIR (sb->st_mode);
+}
+
+//determines if the filepath specified by fpath is an executable
+bool is_exec (string fpath) {
+    struct stat* sb;
+    if ((stat (fpath.c_str(), sb)) == -1) { perror ("stat"); }
+    return sb->st_mode & S_IXUSR;
+}
+
+//determines if the filepath specified by fpath is hidden (fpath[0] == '.')
+bool is_hidden (string fpath) { return (fpath[0] == '.'); }
+
+
+//print_color_file: takes path and file_name, prints
+void print_color_file (string fpath, string file_name)
+{
+    if (is_dir (fpath))
+    {
+        if (is_hidden (fpath))
+        {
+            cout << "\033[34;100m" << file_name << "\033[0m" << endl;
+        } else {
+            cout << "\033[34m" << file_name << "\033[0m" << endl;
+        }
+    }
+    else if (is_exec (fpath))
+    {
+        if (is_hidden (fpath))
+        {
+            cout << "\033[32;100m" << file_name << "\033[0m" << endl;
+        } else {
+            cout << "\033[32m" << file_name << "\033[0m" << endl;
+        }
+    } else {
+        if (is_hidden (fpath))
+        {
+            cout << "\033[32;100m" << file_name << "\033[0m" << endl;
+        } else {
+            cout << file_name << endl;
+        }
+    }
+}
+
 class Result
 {
 public:
@@ -46,6 +94,7 @@ public:
     int        bytes_size;
     string     time_last_mod;
     string     filename;
+    string     fpath; // full path
 
     //constructors
     Result () {}; //cppcheck warning with --enable=warning
@@ -57,35 +106,64 @@ public:
     void print_basic ()
     {
         //print basic ls
-        cout << filename << "  ";
-    }
-    void get_recursive ()
-    {
-        ;
-    }
-    void print_recursive ()
-    {
-        /*
-        for (int i = 0; i < dirs.size(); ++i)
+        if (type == "d") //dir found
         {
-            for (int j = 0; j < dirs[i].size(); ++j)
+            if (filename[0] == '.') //hidden found
             {
-                if (dirs[i].files[j].permissions[0] == 'd') //dir found
-                {
-                    cout << "dir found!" << endl;
-                    //add another object to the dir list
-                    //reset i and j to 0 (scan again)
-                }
+                cout << "\033[34;40m" << filename << "\033[0m";
+            } else {
+                cout << "\033[34m" << filename << "\033[0m";
             }
         }
-        */
+        else if (permissions.find('x') != string::npos) //executable found
+        {
+            if (filename[0] == '.')
+            {
+                cout << "\033[32;40m" << filename << "\033[0m";
+            } else {
+                cout << "\033[32m" << filename << "\033[0m";
+            }
+        } else {
+            if (filename[0] == '.')
+            {
+                cout << "\033[32;40m" << filename << "\033[0m";
+            } else {
+                cout << filename;
+            }
+        }
+        cout << "  " << flush;
     }
     void print_long_format ()
     {
         //print -l ls
         cout << type << permissions << " " << links << " " << owner << " "
              << group_owner << " " << bytes_size << " " << time_last_mod
-             << " " << filename << endl;
+             << " ";// << filename << endl;
+        if (type == "d") //dir found
+        {
+            if (filename[0] == '.')
+            {
+                cout << "\033[34;40m" << filename << "\033[0m" << endl;
+            } else {
+                cout << "\033[34m" << filename << "\033[0m" << endl;
+            }
+        }
+        else if (permissions.find('x') != string::npos) //executable found
+        {
+            if (filename[0] == '.')
+            {
+                cout << "\033[32;40m" << filename << "\033[0m" << endl;
+            } else {
+                cout << "\033[32m" << filename << "\033[0m" << endl;
+            }
+        } else {
+            if (filename[0] == '.')
+            {
+                cout << "\033[32;40m" << filename << "\033[0m" << endl;
+            } else {
+                cout << filename << endl;
+            }
+        }
     }
 
 };
@@ -103,6 +181,7 @@ public:
      : dir_name(dir_name)
     { }
 };
+
 
 //a display function to be passed to nftw (file tree walk) for recursive printing
 int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ftwbuf)
@@ -132,14 +211,65 @@ int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ft
 }
 
 //a display function to be passed to nftw for recursive printing, long listing form
-int display_long (const char* fpath, const struct stat* sb, int tflag, struct FTW ftwbuf)
+int display_long (const char* fpath, const struct stat* sb, int tflag, struct FTW* ftwbuf)
 {
-    //TODO: print everything in long listing format (also a huge printf)
     if (S_ISDIR (sb->st_mode))
     {
         cout << "\n" << fpath << ": " << endl;
     }
-    //printf ("%s%s %d %s %s %d %s %s", )
+    string type =  (S_ISREG (sb->st_mode) ? "-" :
+                    S_ISDIR (sb->st_mode) ? "d" :
+                    S_ISCHR (sb->st_mode) ? "c" :
+                    S_ISBLK (sb->st_mode) ? "b" :
+                    S_ISFIFO (sb->st_mode) ? "p" :
+                    S_ISLNK (sb->st_mode) ? "l" :
+                    S_ISSOCK (sb->st_mode) ? "s" : "-");
+    string permissions = "";
+    permissions += ( (sb->st_mode & S_IRUSR) ? 'r' : '-');
+    permissions += ( (sb->st_mode & S_IWUSR) ? 'w' : '-');
+    permissions += ( (sb->st_mode & S_IXUSR) ? 'x' : '-');
+    permissions += ( (sb->st_mode & S_IRGRP) ? 'r' : '-');
+    permissions += ( (sb->st_mode & S_IWGRP) ? 'w' : '-');
+    permissions += ( (sb->st_mode & S_IXGRP) ? 'x' : '-');
+    permissions += ( (sb->st_mode & S_IROTH) ? 'r' : '-');
+    permissions += ( (sb->st_mode & S_IWOTH) ? 'w' : '-');
+    permissions += ( (sb->st_mode & S_IXOTH) ? 'x' : '-');
+    int links = sb->st_nlink;
+    struct passwd* pb = getpwuid (sb->st_uid);
+    if (pb == NULL)
+    {
+        perror ("getpwuid");
+        exit (EXIT_FAILURE);
+    }
+    string owner = pb->pw_name;
+    struct group* gb = getgrgid (sb->st_gid);
+    if (gb == NULL)
+    {
+        perror ("getgrgid");
+        exit(EXIT_FAILURE);
+    }
+    string group_owner = gb->gr_name;
+    int bytes_size = sb->st_size;
+    time_t rawtime = sb->st_mtime;
+    struct tm* timeinfo;
+    timeinfo = localtime (&rawtime);
+    char *t = asctime (timeinfo);
+    t [strlen(t) - 1] = 0;
+    string time_last_mod = t;
+    string file_name = fpath + ftwbuf->base;
+    /*
+    printf ("%s%s %d %s %s %d %s ",
+            type.c_str(), permissions.c_str(), links, owner.c_str(), group_owner.c_str(), 
+            bytes_size, time_last_mod.c_str());
+    */
+    cout << type << permissions << " " << links << " " << owner << " "
+         << group_owner << " " << bytes_size << " " << time_last_mod << " ";
+
+    //cout << "FPATH = " << fpath << endl;
+    //cout << file_name << endl;
+
+    print_color_file (fpath, file_name);
+
     return 0;
 }
 
@@ -147,6 +277,7 @@ int display_long (const char* fpath, const struct stat* sb, int tflag, struct FT
 vector<Directory> dirs;
 vector<Result> results;
 
+//result_sort is a helper function for std::sort()
 bool result_sort (Result i, Result j) { return (i.filename < j.filename); }
 
 //isHidden: a helper function to std::remove_if to determine
@@ -278,7 +409,16 @@ void display (int argc, char** argv, int idx)
     }
     else if (long_listing_format && recursive)      // -lR, -alR
     {
-        cout << "lR, alR" << endl;
+        int flags = 0;
+        for (int i = 0; i < dirs.size(); ++i)
+        {
+            if (nftw (dirs[i].dir_name.c_str(), display_long, 20, flags) == -1)
+            {
+                perror ("nftw");
+                exit (EXIT_FAILURE);
+            }
+            if ( (i + 1) == dirs.size() ) cout << endl;
+        }
     }
     else
     {
@@ -293,7 +433,7 @@ void get_files (int argc, char** argv, int idx)
     {
         const char *dirname;
         if (idx == argc && first_iteration) {
-            dirname = "./"; // added a slash (MAY BREAK THINGS)
+            dirname = "."; // added a slash (MAY BREAK THINGS)
         } else if (idx == argc && !first_iteration) {
             break;
         } else {
@@ -323,6 +463,7 @@ void get_files (int argc, char** argv, int idx)
             file_name_s += "/";
             file_name_s += direntp->d_name;
             Result temp;
+            temp.fpath = file_name_s;
             struct stat sb;
             int err = stat((file_name_s).c_str(), &sb);
             if (err == -1)
@@ -332,69 +473,23 @@ void get_files (int argc, char** argv, int idx)
             }
             if (!show_hidden && file_name.at(0) == '.') continue;
             //populate the temp object, then push it to the vector
-            if (S_ISREG (sb.st_mode)) {
-                temp.type = "-";
-            } else if (S_ISDIR (sb.st_mode)) {
-                temp.type = "d";
-            } else if (S_ISCHR (sb.st_mode)) {
-                temp.type = "c";
-            } else if (S_ISBLK (sb.st_mode)) {
-                temp.type = "b";
-            } else if (S_ISFIFO (sb.st_mode)) {
-                temp.type = "p";
-            } else if (S_ISLNK (sb.st_mode)) {
-                temp.type = "l";
-            } else if (S_ISSOCK (sb.st_mode)) {
-                temp.type = "s";
-            } else {
-                temp.type = "-";
-            }
+            temp.type = (S_ISREG  (sb.st_mode) ? "-" :
+                         S_ISDIR  (sb.st_mode) ? "d" : 
+                         S_ISCHR  (sb.st_mode) ? "c" :
+                         S_ISBLK  (sb.st_mode) ? "b" :
+                         S_ISFIFO (sb.st_mode) ? "p" :
+                         S_ISLNK  (sb.st_mode) ? "l" :
+                         S_ISSOCK (sb.st_mode) ? "s" : "-");
             string permissions = "";
-            if (sb.st_mode & S_IRUSR) {
-                permissions += "r";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IWUSR) {
-                permissions += "w";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IXUSR) {
-                permissions += "x";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IRGRP) {
-                permissions += "r";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IWGRP) {
-                permissions += "w";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IXGRP) {
-                permissions += "x";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IROTH) {
-                permissions += "r";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IWOTH) {
-                permissions += "w";
-            } else {
-                permissions += "-";
-            }
-            if (sb.st_mode & S_IXOTH) {
-                permissions += "x";
-            } else {
-                permissions += "-";
-            }
+            permissions += ( (sb.st_mode & S_IRUSR) ? 'r' : '-');
+            permissions += ( (sb.st_mode & S_IWUSR) ? 'w' : '-');
+            permissions += ( (sb.st_mode & S_IXUSR) ? 'x' : '-');
+            permissions += ( (sb.st_mode & S_IRGRP) ? 'r' : '-');
+            permissions += ( (sb.st_mode & S_IWGRP) ? 'w' : '-');
+            permissions += ( (sb.st_mode & S_IXGRP) ? 'x' : '-');
+            permissions += ( (sb.st_mode & S_IROTH) ? 'r' : '-');
+            permissions += ( (sb.st_mode & S_IWOTH) ? 'w' : '-');
+            permissions += ( (sb.st_mode & S_IXOTH) ? 'x' : '-');
             temp.permissions = permissions;
             temp.links = sb.st_nlink;
             struct passwd *pb = getpwuid (sb.st_uid);
