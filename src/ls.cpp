@@ -24,7 +24,7 @@
 //#define _XOPEN_SOURCE   500       //causes an error
 #define IMPROPER_FLAGS  1
 #define FAILURE_EXIT    2
-#define LINE_SIZE       80
+#define LINE_SIZE       78
 
 using namespace std;
 
@@ -35,6 +35,8 @@ bool recursive              = false;        // -R
 
 bool first_run              = true;         // assists in printing recursively
 
+string outbuf; //assists in printing columns
+
 //determines if the filepath specified by fpath is a directory
 bool is_dir (string fpath) {
     struct stat* sb;
@@ -43,45 +45,17 @@ bool is_dir (string fpath) {
 }
 
 //determines if the filepath specified by fpath is an executable
+/*
 bool is_exec (string fpath) {
     struct stat* sb;
     if ((stat (fpath.c_str(), sb)) == -1) { perror ("stat"); }
-    return sb->st_mode & S_IXUSR;
+    return (sb->st_mode & S_IXUSR);
 }
+*/
 
 //determines if the filepath specified by fpath is hidden (fpath[0] == '.')
 bool is_hidden (string fpath) { return (fpath[0] == '.'); }
 
-
-//print_color_file: takes path and file_name, prints
-void print_color_file (string fpath, string file_name)
-{
-    if (is_dir (fpath))
-    {
-        if (is_hidden (fpath))
-        {
-            cout << "\033[34;100m" << file_name << "\033[0m" << endl;
-        } else {
-            cout << "\033[34m" << file_name << "\033[0m" << endl;
-        }
-    }
-    else if (is_exec (fpath))
-    {
-        if (is_hidden (fpath))
-        {
-            cout << "\033[32;100m" << file_name << "\033[0m" << endl;
-        } else {
-            cout << "\033[32m" << file_name << "\033[0m" << endl;
-        }
-    } else {
-        if (is_hidden (fpath))
-        {
-            cout << "\033[32;100m" << file_name << "\033[0m" << endl;
-        } else {
-            cout << file_name << endl;
-        }
-    }
-}
 
 class Result
 {
@@ -106,6 +80,13 @@ public:
     void print_basic ()
     {
         //print basic ls
+        outbuf += filename;
+        outbuf += "  ";
+        if (outbuf.length() >= LINE_SIZE) {
+            cout << endl;
+            outbuf = "";
+        }
+
         if (type == "d") //dir found
         {
             if (filename[0] == '.') //hidden found
@@ -182,26 +163,10 @@ public:
     { }
 };
 
-
-//a display function to be passed to nftw (file tree walk) for recursive printing
-int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ftwbuf)
+Result get_info (const char* fpath, const struct stat* sb, struct FTW* ftwbuf)
 {
-    /* if (strlen (fpath) != 0 && fpath[0] == '.' && !show_hidden)
-    {
-        return 0;
-    }
-    */
-    if (S_ISDIR (sb->st_mode))
-    {
-        if (first_run) {
-            cout << fpath << ": " << endl;
-            first_run = false;
-        } else {
-            cout << "\n\n" << fpath << ": " << endl;
-        }
-    }
-
-    string type =  (S_ISREG (sb->st_mode) ? "-" :
+    Result temp;
+    temp.type =  (S_ISREG (sb->st_mode) ? "-" :
                     S_ISDIR (sb->st_mode) ? "d" :
                     S_ISCHR (sb->st_mode) ? "c" :
                     S_ISBLK (sb->st_mode) ? "b" :
@@ -218,33 +183,69 @@ int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ft
     permissions += ( (sb->st_mode & S_IROTH) ? 'r' : '-');
     permissions += ( (sb->st_mode & S_IWOTH) ? 'w' : '-');
     permissions += ( (sb->st_mode & S_IXOTH) ? 'x' : '-');
-    int links = sb->st_nlink;
+    temp.permissions = permissions;
+    temp.links = sb->st_nlink;
     struct passwd* pb = getpwuid (sb->st_uid);
     if (pb == NULL)
     {
         perror ("getpwuid");
         exit (EXIT_FAILURE);
     }
-    string owner = pb->pw_name;
+    temp.owner = pb->pw_name;
     struct group* gb = getgrgid (sb->st_gid);
     if (gb == NULL)
     {
         perror ("getgrgid");
         exit(EXIT_FAILURE);
     }
-    string group_owner = gb->gr_name;
-    int bytes_size = sb->st_size;
+    temp.group_owner = gb->gr_name;
+    temp.bytes_size = sb->st_size;
     time_t rawtime = sb->st_mtime;
     struct tm* timeinfo;
     timeinfo = localtime (&rawtime);
     char *t = asctime (timeinfo);
     t [strlen(t) - 1] = 0;
-    string time_last_mod = t;
-    string file_name = fpath + ftwbuf->base;
+    temp.time_last_mod = t;
+    temp.filename = fpath + ftwbuf->base;
+    return temp;
+}
 
-    if (file_name[0] == '.' && !show_hidden) 
+//a display function to be passed to nftw (file tree walk) for recursive printing
+int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ftwbuf)
+{
+    if (S_ISDIR (sb->st_mode))
+    {
+        if (first_run) {
+            cout << fpath << ": " << endl;
+            first_run = false;
+        } else {
+            cout << "\n\n" << fpath << ": " << endl;
+        }
+    }
+
+    Result temp = get_info (fpath, sb, ftwbuf);
+
+    if (temp.filename[0] == '.' && !show_hidden) 
     {
         return 0;
+    }
+
+    string f = fpath;
+
+    if ( (S_ISDIR (sb->st_mode)) && ( fpath[f.find(temp.filename)-1] == '/') )
+    {
+        //path is a directory, and (very likely) the current directory
+        cout << "\033[1;34;40m" << "." << "\033[0m" << "  "
+             << "\033[1;34;40m" << ".." << "\033[0m" << "  ";
+        outbuf += "       ";
+        return 0;
+    }
+
+    outbuf += temp.filename;
+    outbuf += "  ";
+    if (outbuf.length() >= LINE_SIZE) {
+        cout << endl;
+        outbuf = "";
     }
 
     if (fpath == (fpath + ftwbuf->base)/* the directory equals the first entry */)
@@ -253,29 +254,29 @@ int display (const char* fpath, const struct stat* sb, int tflag, struct FTW* ft
         return 0;
     } else {
 
-        if (type == "d") //dir found
+        if (temp.type == "d") //dir found
         {
-            if (file_name[0] == '.')
+            if (temp.filename[0] == '.')
             {
-                cout << "\033[1;34;40m" << file_name << "\033[0m";
+                cout << "\033[1;34;40m" << temp.filename << "\033[0m";
             } else {
-                cout << "\033[1;34m" << file_name << "\033[0m";
+                cout << "\033[1;34m" << temp.filename << "\033[0m";
             }
         }
-        else if (permissions.find('x') != string::npos) //executable found
+        else if (temp.permissions.find('x') != string::npos) //executable found
         {
-            if (file_name[0] == '.')
+            if (temp.filename[0] == '.')
             {
-                cout << "\033[1;32;40m" << file_name << "\033[0m";
+                cout << "\033[1;32;40m" << temp.filename << "\033[0m";
             } else {
-                cout << "\033[1;32m" << file_name << "\033[0m";
+                cout << "\033[1;32m" << temp.filename << "\033[0m";
             }
         } else {
-            if (file_name[0] == '.')
+            if (temp.filename[0] == '.')
             {
-                cout << "\033[1;32;40m" << file_name << "\033[0m";
+                cout << "\033[1;32;40m" << temp.filename << "\033[0m";
             } else {
-                cout << file_name;
+                cout << temp.filename;
             }
         }
     }
@@ -291,80 +292,67 @@ int display_long (const char* fpath, const struct stat* sb, int tflag, struct FT
     {
         cout << "\n" << fpath << ": " << endl;
     }
-    string type =  (S_ISREG (sb->st_mode) ? "-" :
-                    S_ISDIR (sb->st_mode) ? "d" :
-                    S_ISCHR (sb->st_mode) ? "c" :
-                    S_ISBLK (sb->st_mode) ? "b" :
-                    S_ISFIFO (sb->st_mode) ? "p" :
-                    S_ISLNK (sb->st_mode) ? "l" :
-                    S_ISSOCK (sb->st_mode) ? "s" : "-");
-    string permissions = "";
-    permissions += ( (sb->st_mode & S_IRUSR) ? 'r' : '-');
-    permissions += ( (sb->st_mode & S_IWUSR) ? 'w' : '-');
-    permissions += ( (sb->st_mode & S_IXUSR) ? 'x' : '-');
-    permissions += ( (sb->st_mode & S_IRGRP) ? 'r' : '-');
-    permissions += ( (sb->st_mode & S_IWGRP) ? 'w' : '-');
-    permissions += ( (sb->st_mode & S_IXGRP) ? 'x' : '-');
-    permissions += ( (sb->st_mode & S_IROTH) ? 'r' : '-');
-    permissions += ( (sb->st_mode & S_IWOTH) ? 'w' : '-');
-    permissions += ( (sb->st_mode & S_IXOTH) ? 'x' : '-');
-    int links = sb->st_nlink;
-    struct passwd* pb = getpwuid (sb->st_uid);
-    if (pb == NULL)
-    {
-        perror ("getpwuid");
-        exit (EXIT_FAILURE);
-    }
-    string owner = pb->pw_name;
-    struct group* gb = getgrgid (sb->st_gid);
-    if (gb == NULL)
-    {
-        perror ("getgrgid");
-        exit(EXIT_FAILURE);
-    }
-    string group_owner = gb->gr_name;
-    int bytes_size = sb->st_size;
-    time_t rawtime = sb->st_mtime;
-    struct tm* timeinfo;
-    timeinfo = localtime (&rawtime);
-    char *t = asctime (timeinfo);
-    t [strlen(t) - 1] = 0;
-    string time_last_mod = t;
-    string file_name = fpath + ftwbuf->base;
-    /*
-    printf ("%s%s %d %s %s %d %s ",
-            type.c_str(), permissions.c_str(), links, owner.c_str(), group_owner.c_str(), 
-            bytes_size, time_last_mod.c_str());
-    */
-    cout << type << permissions << " " << links << " " << owner << " "
-         << group_owner << " " << bytes_size << " " << time_last_mod << " ";
 
-    //cout << "FPATH = " << fpath << endl;
-    //cout << file_name << endl;
+    Result temp = get_info (fpath, sb, ftwbuf);
+
+    string f = fpath;
     
-    if (type == "d") //dir found
+    if ( (S_ISDIR (sb->st_mode)) && ( fpath[f.find(temp.filename)-1] == '/') )
     {
-        if (file_name[0] == '.')
+        //path is a directory, and (very likely) the current directory
+        // (that is, we don't want to print it here)
+        /*
+        string _fpath = fpath;
+        int pos =  _fpath.find (temp.filename);
+        if (pos != string::npos)
         {
-            cout << "\033[1;34;40m" << file_name << "\033[0m" << endl;
+            //_fpath.erase (pos, _fpath.length());
+            _fpath += "/";
+            struct stat* _sb;
+            //stat call on .
+            cout << "_fpath: " << _fpath << endl;
+            int err = lstat (_fpath.c_str(), _sb);
+            if (err == -1) {
+                perror ("lstat");
+                //exit (EXIT_FAILURE);
+            }
+            struct FTW* _ftwbuf; //to be overwritten
+            Result _temp = get_info (_fpath.c_str(), _sb, _ftwbuf);
+            _temp.filename = _fpath;
+            temp.print_basic ();
+
+            //handle .. as well
+        }
+        */
+        return 0;
+    }
+
+    cout << temp.type << temp.permissions << " " << temp.links << " " << temp.owner << " "
+         << temp.group_owner << " " << temp.bytes_size << " " << temp.time_last_mod << " ";
+
+    if (temp.type == "d") //dir found
+    {
+        if (temp.filename[0] == '.')
+        {
+            cout << "\033[1;34;40m" << temp.filename << "\033[0m" << endl;
         } else {
-            cout << "\033[1;34m" << file_name << "\033[0m" << endl;
+            cout << "\033[1;34m" << temp.filename << "\033[0m" << endl;
         }
     }
-    else if (permissions.find('x') != string::npos) //executable found
+    else if (temp.permissions.find('x') != string::npos) //executable found
     {
-        if (file_name[0] == '.')
+        if (temp.filename[0] == '.')
         {
-            cout << "\033[1;32;40m" << file_name << "\033[0m" << endl;
+            cout << "\033[1;32;40m" << temp.filename << "\033[0m" << endl;
         } else {
-            cout << "\033[1;32m" << file_name << "\033[0m" << endl;
+            cout << "\033[1;32m" << temp.filename << "\033[0m" << endl;
         }
     } else {
-        if (file_name[0] == '.')
+        if (temp.filename[0] == '.')
         {
-            cout << "\033[1;32;40m" << file_name << "\033[0m" << endl;
+            cout << "\033[1;32;40m" << temp.filename << "\033[0m" << endl;
         } else {
-            cout << file_name << endl;
+            cout << temp.filename << endl;
         }
     }
     
@@ -493,9 +481,9 @@ void display (int argc, char** argv, int idx)
     else if (!long_listing_format && recursive)     // -R, -aR
     {
         //cout << "R, aR" << endl;
-        int flags = 0;
+        int flags = FTW_CHDIR;
         //for each dir entered
-        for (int i = 0; i < dirs.size(); ++i) {
+        for (unsigned i = 0; i < dirs.size(); ++i) {
            //recurse over all subdirectories (just by name)
            if (nftw (dirs[i].dir_name.c_str(), display, 20, flags) == -1)
            {
@@ -507,8 +495,8 @@ void display (int argc, char** argv, int idx)
     }
     else if (long_listing_format && recursive)      // -lR, -alR
     {
-        int flags = 0;
-        for (int i = 0; i < dirs.size(); ++i)
+        int flags = FTW_CHDIR;
+        for (unsigned i = 0; i < dirs.size(); ++i)
         {
             if (nftw (dirs[i].dir_name.c_str(), display_long, 20, flags) == -1)
             {
@@ -636,7 +624,7 @@ void sort_files ()
     //TODO: think about implementing a natural sorting algorithm
     //      to match the behavior of the original ls.
     //      ASCIIbetical sort sucks...
-    for (int i = 0; i < dirs.size (); ++i) 
+    for (unsigned i = 0; i < dirs.size (); ++i) 
     {
         //sort each passed-in directory's files separately
         sort (dirs[i].files.begin(), dirs[i].files.end(), result_sort);
