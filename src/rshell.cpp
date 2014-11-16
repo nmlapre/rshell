@@ -48,10 +48,10 @@ vector<string> tokenize(string);
 
 //make tokens a character array instead of a list of strings
 //so that it can be passed safely to execvp
-char** to_char_array(vector<string>);
+vector<char*> to_char_array(vector<string>);
 
 //execute the command entered by the user
-void execute(char**);
+void execute(vector<char*>);
 
 //contains logic to push our commands and connectors
 //to vectors
@@ -67,7 +67,7 @@ int main()
 		tokenize(input); //populates global vectors
 		vector<string>::iterator it;
 		vector<string>::iterator j = connectors.begin();
-		vector<string> temp; //holds each full command between connectors
+		vector<string> cmd; //holds each full command between connectors
 		cont_exec = true; //determines whether or not the next command after
 				       //a connector will execute
 		/*
@@ -104,17 +104,16 @@ int main()
 				}
 				++it;
 			}
-			temp.clear();
+			cmd.clear();
 			while (it != commands.end() && *it != "CONNECTOR") {
-				temp.push_back(*it);
+				cmd.push_back(*it);
 				++it;
 			}
-			char** argv = to_char_array(temp);
+			vector<char*> argv = to_char_array(cmd);
 			if (cont_exec) {
-				execute(argv);
+				execute(argv);      //cmd must be vector<char*>
 			}
 		} 
-		
 	}
 }
 
@@ -162,30 +161,27 @@ vector<string> tokenize(string user_input) {
 	return tokenList;
 }
 
-char** to_char_array(vector<string> tokens) {
+vector<char*> to_char_array(vector<string> tokens) {
 	int count = 0;
-	char **progArgs = new char*[tokens.size()];
-	for(vector<string>::iterator t=tokens.begin(); t!=tokens.end(); t++)
+    vector<char*> progArgs (tokens.size() + 1);     // one more for NULL
+    for (size_t i = 0; i != tokens.size(); ++i)
 	{
-		progArgs[count] = strdup(t->c_str()); //change all progArgs to c_strings
-       		count++;
+		progArgs[i] = &tokens[i][0]; //change all progArgs to c_strings
+       	count++;
    	}
 	return progArgs;
 }
 
-void execute (char** argv) {
+
+void execute (vector<char*> argv) {
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
 		exit(EXIT_FAILURE);
 	}
 	if (pid == 0) {
-		unsigned argc = 0;
-		BOOST_FOREACH(char* arg, argv) {
-			arg = arg+0; //suppress warnings
-			argc++;
-		}
-		int r = execvp(argv[0], argv);
+		unsigned argc = argv.size();
+		int r = execvp(argv[0], argv.data());
 		int errsv = errno;
 		if ( r != 0 ) {
 			perror("execvp");
@@ -195,11 +191,12 @@ void execute (char** argv) {
 		if (errsv == ENOENT) {
 			return_status = false;
 		}
+        /*
 		if( argc != 0 ) {
 			for (unsigned i = 0; i < argc; ++i) {
 				delete[] argv[i];
 			}
-		}
+		}*/
 	} else {
 		if ( wait(0) == -1 ) {
 			perror("wait");
