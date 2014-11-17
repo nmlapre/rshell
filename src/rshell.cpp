@@ -23,6 +23,9 @@ vector<string> commands;
 //stores each command connector
 vector<string> connectors;
 
+//stores each redirection connector
+vector<string> redirects;
+
 //custom function to allow pop_front for vectors
 template<typename T>
 void pop_front(std::vector<T>& v)
@@ -62,13 +65,17 @@ void execute_redirect(vector<char*>);
 int identify_redirection(vector<char*>);
 
 //execute, but for redirection, a distinct thing here
+//in this: execvp, control logic
 void redir_execute(vector<char*>);
+
+//do the actual redirection
+void redir(string, int);
 
 //contains logic to push our commands and connectors
 //to vectors
 //MISSING: deal with, for example, ls -a||echo test
 //that is, [arg][connector][arg]
-void push_to_vectors(string t, string s);
+void push_to_vectors(string, string, bool);
 
 int main()
 {
@@ -86,6 +93,8 @@ int main()
 		BOOST_FOREACH(string r, connectors) { cout << '[' << r << ']' << endl; }
 		cout << "commands vector: " << endl;
 		BOOST_FOREACH(string r, commands) { cout << '[' << r << ']' << endl; }
+		cout << "redirects vector: " << endl;
+		BOOST_FOREACH(string r, redirects) { cout << '[' << r << ']' << endl; }
 		
 		return_status = true; //holds whether or not the past execvp command succeeded
 		for (it = commands.begin() ; it != commands.end(); ) {
@@ -122,11 +131,10 @@ int main()
 				cmd.push_back(*it);
 				++it;
 			}
-            if (find(cmd.begin(), cmd.end(), "<")  != cmd.end() ||
-                find(cmd.begin(), cmd.end(), ">")  != cmd.end() ||
-                find(cmd.begin(), cmd.end(), ">>") != cmd.end() ||
-                find(cmd.begin(), cmd.end(), "|")  != cmd.end() )
-            {
+			cout << "cmd vector: " << endl;
+			BOOST_FOREACH (string c, cmd) { cout << '[' << c << ']' << endl; }
+			//at this point, if redirection, we will still have REDIRECT in the cmd vector
+			if (!redirects.empty()) { 
                 redirect = true;
             }
 			vector<char*> argv = to_char_array(cmd);
@@ -169,30 +177,30 @@ vector<string> tokenize(string user_input) {
     string pipe = "|";
 	BOOST_FOREACH (string t, tokenList) {
 		if (t.find(";") != string::npos) {          //command separator
-			push_to_vectors(t, sc);	
+			push_to_vectors(t, sc, false);	
 		}
 		else if (t.find("&&") != string::npos) {    //AND
-			push_to_vectors(t, amp);	
+			push_to_vectors(t, amp, false);	
 		}
 		else if (t.find("||") != string::npos) {    //OR
-			push_to_vectors(t, pipes);
+			push_to_vectors(t, pipes, false);
 		}
 		else if (t.find("#") != string::npos) {     //comment
-			push_to_vectors(t, sharp);
+			push_to_vectors(t, sharp, false);
         }
         else if (t.find("<") != string::npos) {     //input redirection
-            push_to_vectors(t, redirin);
+            push_to_vectors(t, redirin, true);
         }
         else if (t.find(">") != string::npos) {     
             int pos = t.find(">");
             if (pos != (t.length()-1) && t.at(pos+1) == '>') {  //first check that we can deference
-                push_to_vectors(t, redirout2);      //output redirection (overwrite)
+                push_to_vectors(t, redirout2, true);      //output redirection (overwrite)
             } else {
-                push_to_vectors(t, redirout);       //output redirection (append)
+                push_to_vectors(t, redirout, true);       //output redirection (append)
             }
         }
         else if (t.find("|") != string::npos) {     //pipe
-            push_to_vectors(t, pipe);
+            push_to_vectors(t, pipe, true);
 		} else {
 			commands.push_back(t);
 		}
@@ -213,7 +221,6 @@ vector<char*> to_char_array(vector<string> tokens) {
    	}
 	return progArgs;
 }
-
 
 void execute (vector<char*> argv) {
 	int pid = fork();
@@ -240,47 +247,23 @@ void execute (vector<char*> argv) {
 	}
 }
 
-void clear_globals() {
-	connectors.clear();
-	commands.clear();
-    redirect = false;
-}
-
-void push_to_vectors(string t, string s) {
-	connectors.push_back(s);
-	if (t.compare(s) == 0) //complete, direct match
-	{
-		commands.push_back("CONNECTOR");
-	} else { //not a complete, direct match
-		//connector first, touches beginning of token
-		if (0 == t.find(s) ) {
-			commands.push_back("CONNECTOR");
-			commands.push_back(t.substr(t.find(s) + s.size(), t.size() - 1));
-		}
-		//connector second, reaches the end of token
-		else if (0 < t.find(s) && ( t.find(s) + s.size() == t.size() ) ) { 
-			commands.push_back( (t.substr (0, t.find(s) ) ) );
-			commands.push_back("CONNECTOR");
-		}
-		//connector is in the middle of two commands, no spaces
-		else if ( 0 < t.find(s) && ( t.find(s) + s.size() < t.size() ) ) {
-			commands.push_back( (t.substr (0, t.find(s) ) ) );
-			commands.push_back("CONNECTOR");
-			commands.push_back( (t.substr (t.find(s) + s.size(), string::npos ) ) );
-		} 
-	}
-}
-
 void redir_execute (vector<char*> argv) {
-    int r_type = 0;
+    int r_type = 0;		//type of redirection
     if (!argv.empty()) {
         r_type = identify_redirection (argv);
     }
+	//remove the REDIRECTs from argv --> do i even need to?
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
 		exit(EXIT_FAILURE);
 	}
+	//target will be whatever is after the op, so after the first REDIRECT...
+	cout << "argv: " << endl;
+	BOOST_FOREACH (char* cmd, argv) cout << '[' << cmd << ']' << endl;
+	string target = *(find (argv.begin(), argv.end(), "REDIRECT")+1);		//pretty much assuredly segfaulting
+	cout << "made it past target deferencing thingy" << endl;
+	redir (target, r_type);
 	if (pid == 0) {         //child
 		int r = execvp(argv[0], argv.data());
 		int errsv = errno;
@@ -300,6 +283,68 @@ void redir_execute (vector<char*> argv) {
 	}
 }
 
+void clear_globals() {
+	connectors.clear();
+	commands.clear();
+	redirects.clear();
+    redirect = false;
+}
+
+void push_to_vectors(string t, string s, bool redir) {
+	connectors.push_back(s);
+	if (!redir) { //IS NOT A REDIRECT COMMAND
+		if (t.compare(s) == 0) //complete, direct match (whitespace on each side)
+		{
+			commands.push_back("CONNECTOR");
+		} else { //not a complete, direct match
+			//connector first, touches beginning of token
+			if (0 == t.find(s) ) {
+				commands.push_back("CONNECTOR");
+				commands.push_back(t.substr(t.find(s) + s.size(), t.size() - 1));
+			}
+			//connector second, reaches the end of token
+			else if (0 < t.find(s) && ( t.find(s) + s.size() == t.size() ) ) { 
+				commands.push_back( (t.substr (0, t.find(s) ) ) );
+				commands.push_back("CONNECTOR");
+			}
+			//connector is in the middle of two commands, no spaces
+			else if ( 0 < t.find(s) && ( t.find(s) + s.size() < t.size() ) ) {
+				commands.push_back( (t.substr (0, t.find(s) ) ) );
+				commands.push_back("CONNECTOR");
+				commands.push_back( (t.substr (t.find(s) + s.size(), string::npos ) ) );
+			} 
+		}
+	}
+	else { //IS A REDIRECT COMMAND
+		if (t.compare(s) == 0) //complete, direct match (whitespace on each side)
+		{
+			commands.push_back("REDIRECT");
+			redirects.push_back(s);
+
+		} else { //not a complete, direct match
+			//connector first, touches beginning of token
+			if (0 == t.find(s) ) {
+				commands.push_back("REDIRECT");
+				commands.push_back(t.substr(t.find(s) + s.size(), t.size() - 1));
+				redirects.push_back(s);
+			}
+			//connector second, reaches the end of token
+			else if (0 < t.find(s) && ( t.find(s) + s.size() == t.size() ) ) { 
+				commands.push_back( (t.substr (0, t.find(s) ) ) );
+				commands.push_back("REDIRECT");
+				redirects.push_back(s);
+			}
+			//connector is in the middle of two commands, no spaces
+			else if ( 0 < t.find(s) && ( t.find(s) + s.size() < t.size() ) ) {
+				commands.push_back( (t.substr (0, t.find(s) ) ) );
+				commands.push_back("REDIRECT");
+				commands.push_back( (t.substr (t.find(s) + s.size(), string::npos ) ) );
+				redirects.push_back(s);
+			} 
+		}
+	}
+}
+
 int identify_redirection (vector<char*> argv) {
     /*r_types:
           -NONE:        0   
@@ -308,25 +353,33 @@ int identify_redirection (vector<char*> argv) {
           -OVERWRITE:   3   >>
           -PIPE:        4   |
     */
-        
+	string type = redirects.front();
+	pop_front(redirects);
+	return (type == "<"  ? 1 :
+			type == ">"  ? 2 :
+			type == ">>" ? 3 :
+			type == "|"  ? 4 : 0);
 }
 
 void redir (string file, int r_type) {
     int fd = -1;
-    if (r_type == 1) {
+    if (r_type == 1) {												//JK MAKE THESE ALL DEFAULT PERMISSIONS
         fd = open (file.c_str(), O_RDONLY, 0777);       //0777 = -rwxrwxrwx
-        close(0);       //close stdin 
-        dup2 (fd, 0);   //dup stdin to the opened file
+		if (-1 == fd) perror ("open");
+        if (-1 == close(0)) perror ("close");       //close stdin 
+        if (-1 == dup2 (fd, 0)) perror ("dup2");   //dup stdin to the opened file
     }
     else if (r_type == 2) {
         fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, 0777);
-        close (1);      //close stdout
-        dup2 (fd, 1);   //dup stdout to the opened file
+		if (-1 == fd) perror ("open");
+        if (-1 == close (1)) perror ("close");      //close stdout
+        if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
     }
     else if (r_type == 3) {
         fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0777);
-        close (1);      //close stdout
-        dup2 (fd, 1);   //dup stdout to the opened file
+		if (-1 == fd) perror ("open");
+        if (-1 == close (1)) perror ("close");      //close stdout
+        if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
     }
 }
 
