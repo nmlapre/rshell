@@ -19,7 +19,7 @@
 #include <sys/stat.h>
 #include <iostream>
 
-#include "alphanum.hpp"
+//#include "alphanum.hpp"
 
 //#define _XOPEN_SOURCE   500       //causes an error
 #define IMPROPER_FLAGS  1

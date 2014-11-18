@@ -62,11 +62,11 @@ void execute(vector<char*>);
 void execute_redirect(vector<char*>);
 
 //handle redirection should the user input it
-int identify_redirection(vector<char*>);
+int identify_redirection(vector<string>);
 
 //execute, but for redirection, a distinct thing here
 //in this: execvp, control logic
-void redir_execute(vector<char*>);
+void redir_execute(vector<string>);
 
 //do the actual redirection
 void redir(string, int);
@@ -89,12 +89,12 @@ int main()
 		cont_exec = true; //determines whether or not the next command after
 				       //a connector will execute
 		
-  		cout << "connectors vector: " << endl;
-		BOOST_FOREACH(string r, connectors) { cout << '[' << r << ']' << endl; }
-		cout << "commands vector: " << endl;
-		BOOST_FOREACH(string r, commands) { cout << '[' << r << ']' << endl; }
-		cout << "redirects vector: " << endl;
-		BOOST_FOREACH(string r, redirects) { cout << '[' << r << ']' << endl; }
+  		//cout << "connectors vector: " << endl;
+		//BOOST_FOREACH(string r, connectors) { cout << '[' << r << ']' << endl; }
+		//cout << "commands vector: " << endl;
+		//BOOST_FOREACH(string r, commands) { cout << '[' << r << ']' << endl; }
+		//cout << "redirects vector: " << endl;
+		//BOOST_FOREACH(string r, redirects) { cout << '[' << r << ']' << endl; }
 		
 		return_status = true; //holds whether or not the past execvp command succeeded
 		for (it = commands.begin() ; it != commands.end(); ) {
@@ -131,8 +131,6 @@ int main()
 				cmd.push_back(*it);
 				++it;
 			}
-			cout << "cmd vector: " << endl;
-			BOOST_FOREACH (string c, cmd) { cout << '[' << c << ']' << endl; }
 			//at this point, if redirection, we will still have REDIRECT in the cmd vector
 			if (!redirects.empty()) { 
                 redirect = true;
@@ -140,7 +138,7 @@ int main()
 			vector<char*> argv = to_char_array(cmd);
             if (redirect && cont_exec) {
                 //do redirect things, as it is distinct from logical operations
-                redir_execute(argv);
+                redir_execute(cmd);
             }
 			else if (cont_exec) {
 				execute(argv);      //cmd must be vector<char*>
@@ -192,7 +190,7 @@ vector<string> tokenize(string user_input) {
             push_to_vectors(t, redirin, true);
         }
         else if (t.find(">") != string::npos) {     
-            int pos = t.find(">");
+            size_t pos = t.find(">");
             if (pos != (t.length()-1) && t.at(pos+1) == '>') {  //first check that we can deference
                 push_to_vectors(t, redirout2, true);      //output redirection (overwrite)
             } else {
@@ -247,25 +245,52 @@ void execute (vector<char*> argv) {
 	}
 }
 
-void redir_execute (vector<char*> argv) {
+void redir_execute (vector<string> argv) 
+{
     int r_type = 0;		//type of redirection
     if (!argv.empty()) {
         r_type = identify_redirection (argv);
     }
-	//remove the REDIRECTs from argv --> do i even need to?
+
+	//idea: grab all the stuff that comes after the redirection operator, and store
+	//		that in a vector. Then, get the first element of that and make that target.
+	vector<string>::iterator i = find (argv.begin(), argv.end(), "REDIRECT");
+	vector<string> after_redir;
+	for (; i != argv.end(); ++i) {
+		after_redir.push_back(*i);
+	}
+
+	//cout << "after_redir: " << endl;
+	//BOOST_FOREACH (string cmd, after_redir) cout << '[' << cmd << ']' << endl;
+
+	string target;
+	if (after_redir.size() >= 2) {
+		target = after_redir.at(1);		//first element after the redirection operator
+	} else {
+		cout << "Invalid amount of arguments to a redirection operator. Need a target." << endl;
+		return;
+	}
+	//make argv only contain the arguments UP TO the first redirection operator
+	// (which is guaranteed to exist)
+	vector<string> argv_temp;
+
+	//cout << "argv: " << endl;
+	//BOOST_FOREACH (string s, argv) { cout << '[' << s << ']' << endl; }
+
+	for (vector<string>::iterator it = argv.begin(); *it != "REDIRECT"; ++it) { //should never segfault
+		argv_temp.push_back (*it);
+	}
+	vector<char*> input = to_char_array (argv_temp);
+
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
 		exit(EXIT_FAILURE);
 	}
-	//target will be whatever is after the op, so after the first REDIRECT...
-	cout << "argv: " << endl;
-	BOOST_FOREACH (char* cmd, argv) cout << '[' << cmd << ']' << endl;
-	string target = *(find (argv.begin(), argv.end(), "REDIRECT")+1);		//pretty much assuredly segfaulting
-	cout << "made it past target deferencing thingy" << endl;
-	redir (target, r_type);
+
 	if (pid == 0) {         //child
-		int r = execvp(argv[0], argv.data());
+		redir (target, r_type);
+		int r = execvp(input[0], input.data());
 		int errsv = errno;
 		if ( r != 0 ) {
 			perror("execvp");
@@ -345,16 +370,16 @@ void push_to_vectors(string t, string s, bool redir) {
 	}
 }
 
-int identify_redirection (vector<char*> argv) {
+int identify_redirection (vector<string> argv) {
     /*r_types:
           -NONE:        0   
           -INPUT:       1   <  
-          -APPEND:      2   >
-          -OVERWRITE:   3   >>
+          -OVERWRITE:	2   >
+          -APPEND:		3   >>
           -PIPE:        4   |
     */
 	string type = redirects.front();
-	pop_front(redirects);
+	//pop_front(redirects);
 	return (type == "<"  ? 1 :
 			type == ">"  ? 2 :
 			type == ">>" ? 3 :
@@ -363,20 +388,20 @@ int identify_redirection (vector<char*> argv) {
 
 void redir (string file, int r_type) {
     int fd = -1;
-    if (r_type == 1) {												//JK MAKE THESE ALL DEFAULT PERMISSIONS
-        fd = open (file.c_str(), O_RDONLY, 0777);       //0777 = -rwxrwxrwx
+    if (r_type == 1) {
+        fd = open (file.c_str(), O_RDONLY);
 		if (-1 == fd) perror ("open");
         if (-1 == close(0)) perror ("close");       //close stdin 
         if (-1 == dup2 (fd, 0)) perror ("dup2");   //dup stdin to the opened file
     }
     else if (r_type == 2) {
-        fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, 0777);
+        fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 		if (-1 == fd) perror ("open");
         if (-1 == close (1)) perror ("close");      //close stdout
         if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
     }
     else if (r_type == 3) {
-        fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0777);
+        fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
 		if (-1 == fd) perror ("open");
         if (-1 == close (1)) perror ("close");      //close stdout
         if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
