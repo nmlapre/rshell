@@ -77,6 +77,9 @@ void redir(string, int);
 //that is, [arg][connector][arg]
 void push_to_vectors(string, string, bool);
 
+vector<string> get_exec_args (vector<string> redir_vec); 
+vector<string> get_redir_args (vector<string> redir_vec); 
+
 int main()
 {
 	while(1) {
@@ -256,6 +259,12 @@ void execute (vector<char*> argv) {
 //      appropriately to the next redirection thingy
 void redir_execute (vector<string> argv) 
 {
+    /*
+    cout << "commands: " << endl;
+    BOOST_FOREACH (string cmd, commands) cout << '[' << cmd << ']' << endl;
+    cout << "redirects: " << endl;
+    BOOST_FOREACH (string redir, redirects) cout << '[' << redir << ']' << endl;
+    */
     int r_type = 0;		//type of redirection
     if (!argv.empty()) {
         r_type = identify_redirection (argv);
@@ -269,9 +278,6 @@ void redir_execute (vector<string> argv)
 		after_redir.push_back(*i);
 	}
 
-	//cout << "after_redir: " << endl;
-	//BOOST_FOREACH (string cmd, after_redir) cout << '[' << cmd << ']' << endl;
-
 	string target;
 	if (after_redir.size() >= 2) {
 		target = after_redir.at(1);		//first element after the redirection operator
@@ -282,13 +288,10 @@ void redir_execute (vector<string> argv)
 	//make argv only contain the arguments UP TO the first redirection operator
 	// (which is guaranteed to exist)
 	vector<string> argv_temp;
-
-	//cout << "argv: " << endl;
-	//BOOST_FOREACH (string s, argv) { cout << '[' << s << ']' << endl; }
-
 	for (vector<string>::iterator it = argv.begin(); *it != "REDIRECT"; ++it) { //should never segfault
 		argv_temp.push_back (*it);
 	}
+    vector<string> redir_vec = argv;
 	vector<char*> input = to_char_array (argv_temp);
 
 	int pid = fork();
@@ -298,7 +301,7 @@ void redir_execute (vector<string> argv)
 	}
 
 	if (pid == 0) {         //child
-		redir (target, r_type);
+		redir (target, r_type);     //instead, pass it a full vector of input
 		int r = execvp(input[0], input.data());
 		int errsv = errno;
 		if ( r != 0 ) {
@@ -389,7 +392,7 @@ int identify_redirection (vector<string> argv) {
           -PIPE:        4   |
     */
 	string type = redirects.front();
-	//pop_front(redirects);
+	pop_front(redirects);
 	return (type == "<"  ? 1 :
 			type == ">"  ? 2 :
 			type == ">>" ? 3 :
@@ -398,10 +401,14 @@ int identify_redirection (vector<string> argv) {
 }
 
 void redir (string file, int r_type) {
-    //while (!full_input.empty()) {  //that is to say, while some string with the
+    //while (!redir_vec.empty()) {  //that is to say, while some vector with the
                                      //entire input is not yet emptied
-        //int r_type = identify_redirection();
-        //input.pop_front();
+        //int r_type = identify_redirection(); //looks at redirects, decides
+        //get vector<string>s for each side of the redirect
+        //          --> exec_args, redir_args (the redirect itself will be in redirects)
+        //vector<string> exec_args = get_exec_args(redir_vec);
+        //vector<string> redir_args = get_redir_args(); (maybe just needs to be a string?)
+        //redir_vec.pop_front(); //actually, we want to remove commands up to the next REDIRECT
     int fd = -1;
     if (r_type == 1) {
         fd = open (file.c_str(), O_RDONLY);
@@ -443,6 +450,30 @@ void redir (string file, int r_type) {
     }
     //execvp (exec_args[0], exec_args);
 }
+
+vector<string> get_exec_args (vector<string> redir_vec) {
+    vector<string> args;
+    vector<string>::iterator it = redir_vec.begin();
+    for (; it != redir_vec.end() && *it != "REDIRECT"; ++it)
+    {
+        args.push_back (*it);
+    }
+    return args;        //left side of redirection
+}
+
+vector<string> get_redir_args (vector<string> redir_vec) {
+    vector<string>::iterator it = redir_vec.begin();
+    while (it != redir_vec.end() && *it != "REDIRECT") {
+        ++it;       //move the pointer to redirect
+    }
+    ++it;
+    vector<string> args;
+    for (; it != redir_vec.end() && *it != "REDIRECT"; ++it) {
+        args.push_back(*it);        //grab everything up to next redirection
+    }
+    return args;
+}
+
 
 /*
 void execute_redirect (vector<char*> argv)
