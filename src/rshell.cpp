@@ -173,6 +173,7 @@ vector<string> tokenize(string user_input) {
     string redirout = ">";
     string redirout2 = ">>";
     string pipe = "|";
+    string here_str = "<<<";
 	BOOST_FOREACH (string t, tokenList) {
 		if (t.find(";") != string::npos) {          //command separator
 			push_to_vectors(t, sc, false);	
@@ -187,11 +188,17 @@ vector<string> tokenize(string user_input) {
 			push_to_vectors(t, sharp, false);
         }
         else if (t.find("<") != string::npos) {     //input redirection
-            push_to_vectors(t, redirin, true);
+            size_t pos = t.find("<");
+            if (pos < (t.length()-2) && t.at(pos+1) == '<' && t.at(pos+2) == '<') {
+                push_to_vectors(t, here_str, true);
+            }
+            else if (pos < (t.length()-1) && t.at(pos+1) != '<') {
+                push_to_vectors(t, redirin, true);
+            }
         }
         else if (t.find(">") != string::npos) {     
             size_t pos = t.find(">");
-            if (pos != (t.length()-1) && t.at(pos+1) == '>') {  //first check that we can deference
+            if (pos < (t.length()-1) && t.at(pos+1) == '>') {  //first check that we can deference
                 push_to_vectors(t, redirout2, true);      //output redirection (overwrite)
             } else {
                 push_to_vectors(t, redirout, true);       //output redirection (append)
@@ -245,6 +252,8 @@ void execute (vector<char*> argv) {
 	}
 }
 
+//TODO: after each redirection, save the value somehow and then pass it
+//      appropriately to the next redirection thingy
 void redir_execute (vector<string> argv) 
 {
     int r_type = 0;		//type of redirection
@@ -305,6 +314,7 @@ void redir_execute (vector<string> argv)
 			perror("wait");
 			exit(EXIT_FAILURE);
 		}
+        if (-1 == unlink(".secrets")) perror ("unlink");
 	}
 }
 
@@ -383,10 +393,15 @@ int identify_redirection (vector<string> argv) {
 	return (type == "<"  ? 1 :
 			type == ">"  ? 2 :
 			type == ">>" ? 3 :
-			type == "|"  ? 4 : 0);
+			type == "|"  ? 4 :
+            type == "<<<"? 5 : 0);
 }
 
 void redir (string file, int r_type) {
+    //while (!full_input.empty()) {  //that is to say, while some string with the
+                                     //entire input is not yet emptied
+        //int r_type = identify_redirection();
+        //input.pop_front();
     int fd = -1;
     if (r_type == 1) {
         fd = open (file.c_str(), O_RDONLY);
@@ -406,6 +421,27 @@ void redir (string file, int r_type) {
         if (-1 == close (1)) perror ("close");      //close stdout
         if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
     }
+    else if (r_type == 4) {
+        //piping
+    }
+    else if (r_type == 5) {     //string literal redirection
+        fd = open (".secrets", O_CREAT | O_RDWR | O_TRUNC, S_IRWXU);   //give open permissions
+        if (-1 == fd) perror ("open1");
+        //create a string that will be written by write
+        // (this string should be everything between quotes, single or double)
+        string test_str = "something that will be written";
+        test_str += "\n";   //append a end line to this shiz
+        //use write(int fd, const void* buf, size_t count);
+        if (-1 == write (fd, test_str.c_str(), test_str.size())) perror ("write");
+        //close the temp file
+        if (-1 == close (fd)) perror("close");
+        //reopen the temp file
+        fd = open (".secrets", O_RDONLY);
+        if (-1 == fd) perror ("open2");
+        //duplicate stdin to the opened file (which contains the command line text)
+        if (-1 == dup2 (fd, 0)) perror ("dup2");
+    }
+    //execvp (exec_args[0], exec_args);
 }
 
 /*
