@@ -26,6 +26,9 @@ vector<string> connectors;
 //stores each redirection connector
 vector<string> redirects;
 
+//holds arguments for execvp
+vector<char*> exec_args;
+
 //custom function to allow pop_front for vectors
 template<typename T>
 void pop_front(std::vector<T>& v)
@@ -41,6 +44,7 @@ void pop_front(std::vector<T>& v)
 bool cont_exec = true;
 bool return_status = true;
 bool redirect = false;
+bool herestring = false;
 
 //clear globals that need clearing (namely our vectors)
 void clear_globals();
@@ -58,18 +62,15 @@ vector<char*> to_char_array(vector<string>);
 //execute the command entered by the user
 void execute(vector<char*>);
 
-//execute the redirection if detected CURRENTLY UNUSED
-void execute_redirect(vector<char*>);
-
 //handle redirection should the user input it
-int identify_redirection(vector<string>);
+int identify_redirection();
 
 //execute, but for redirection, a distinct thing here
 //in this: execvp, control logic
 void redir_execute(vector<string>);
 
 //do the actual redirection
-void redir(string, int);
+void redir(vector<string>);
 
 //contains logic to push our commands and connectors
 //to vectors
@@ -78,7 +79,8 @@ void redir(string, int);
 void push_to_vectors(string, string, bool);
 
 vector<string> get_exec_args (vector<string> redir_vec); 
-vector<string> get_redir_args (vector<string> redir_vec); 
+string get_redir_args (vector<string> redir_vec); 
+vector<string> remove_prev (const vector<string> &redir_vec);
 
 int main()
 {
@@ -192,19 +194,24 @@ vector<string> tokenize(string user_input) {
         }
         else if (t.find("<") != string::npos) {     //input redirection
             size_t pos = t.find("<");
-            if (pos < (t.length()-2) && t.at(pos+1) == '<' && t.at(pos+2) == '<') {
+			if (pos == 0 && (t.length()-1) == 0) {
+				//case where it's just <
+				push_to_vectors (t, redirin, true);
+			}
+			else if (pos < (t.length()-2) && t.at(pos+1) == '<' && t.at(pos+2) == '<') {
                 push_to_vectors(t, here_str, true);
+                herestring = true;
             }
-            else if (pos < (t.length()-1) && t.at(pos+1) != '<') {
+            else if (pos <= (t.length()-1) && t.at(pos+1) != '<') {
                 push_to_vectors(t, redirin, true);
             }
         }
         else if (t.find(">") != string::npos) {     
             size_t pos = t.find(">");
             if (pos < (t.length()-1) && t.at(pos+1) == '>') {  //first check that we can deference
-                push_to_vectors(t, redirout2, true);      //output redirection (overwrite)
+                push_to_vectors(t, redirout2, true);      //output redirection (append)
             } else {
-                push_to_vectors(t, redirout, true);       //output redirection (append)
+                push_to_vectors(t, redirout, true);       //output redirection (overwrite)
             }
         }
         else if (t.find("|") != string::npos) {     //pipe
@@ -259,41 +266,6 @@ void execute (vector<char*> argv) {
 //      appropriately to the next redirection thingy
 void redir_execute (vector<string> argv) 
 {
-    /*
-    cout << "commands: " << endl;
-    BOOST_FOREACH (string cmd, commands) cout << '[' << cmd << ']' << endl;
-    cout << "redirects: " << endl;
-    BOOST_FOREACH (string redir, redirects) cout << '[' << redir << ']' << endl;
-    */
-    int r_type = 0;		//type of redirection
-    if (!argv.empty()) {
-        r_type = identify_redirection (argv);
-    }
-
-	//idea: grab all the stuff that comes after the redirection operator, and store
-	//		that in a vector. Then, get the first element of that and make that target.
-	vector<string>::iterator i = find (argv.begin(), argv.end(), "REDIRECT");
-	vector<string> after_redir;
-	for (; i != argv.end(); ++i) {
-		after_redir.push_back(*i);
-	}
-
-	string target;
-	if (after_redir.size() >= 2) {
-		target = after_redir.at(1);		//first element after the redirection operator
-	} else {
-		cout << "Invalid amount of arguments to a redirection operator. Need a target." << endl;
-		return;
-	}
-	//make argv only contain the arguments UP TO the first redirection operator
-	// (which is guaranteed to exist)
-	vector<string> argv_temp;
-	for (vector<string>::iterator it = argv.begin(); *it != "REDIRECT"; ++it) { //should never segfault
-		argv_temp.push_back (*it);
-	}
-    vector<string> redir_vec = argv;
-	vector<char*> input = to_char_array (argv_temp);
-
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
@@ -301,23 +273,16 @@ void redir_execute (vector<string> argv)
 	}
 
 	if (pid == 0) {         //child
-		redir (target, r_type);     //instead, pass it a full vector of input
-		int r = execvp(input[0], input.data());
-		int errsv = errno;
-		if ( r != 0 ) {
-			perror("execvp");
-			return_status = false;
-			exit(EXIT_FAILURE);
-		}
-		if (errsv == ENOENT) {
-			return_status = false;
-		}
+		redir (argv);     
 	} else {                //parent
 		if ( wait(0) == -1 ) {
 			perror("wait");
 			exit(EXIT_FAILURE);
 		}
-        if (-1 == unlink(".secrets")) perror ("unlink");
+        struct stat sb;
+        if (herestring) {
+            if (-1 == unlink(".secrets")) perror ("unlink");
+        }
 	}
 }
 
@@ -325,7 +290,9 @@ void clear_globals() {
 	connectors.clear();
 	commands.clear();
 	redirects.clear();
+	exec_args.clear();
     redirect = false;
+    herestring = false;
 }
 
 void push_to_vectors(string t, string s, bool redir) {
@@ -383,13 +350,14 @@ void push_to_vectors(string t, string s, bool redir) {
 	}
 }
 
-int identify_redirection (vector<string> argv) {
+int identify_redirection () {
     /*r_types:
           -NONE:        0   
           -INPUT:       1   <  
           -OVERWRITE:	2   >
           -APPEND:		3   >>
           -PIPE:        4   |
+          -HERESTRING   5   <<<
     */
 	string type = redirects.front();
 	pop_front(redirects);
@@ -400,55 +368,74 @@ int identify_redirection (vector<string> argv) {
             type == "<<<"? 5 : 0);
 }
 
-void redir (string file, int r_type) {
-    //while (!redir_vec.empty()) {  //that is to say, while some vector with the
+void redir (vector<string> redir_vec) {
+
+    while (!redir_vec.empty() && !redirects.empty()) {  //that is to say, while some vector with the
                                      //entire input is not yet emptied
-        //int r_type = identify_redirection(); //looks at redirects, decides
+        int r_type = identify_redirection(); //looks at redirects, decides
         //get vector<string>s for each side of the redirect
         //          --> exec_args, redir_args (the redirect itself will be in redirects)
-        //vector<string> exec_args = get_exec_args(redir_vec);
-        //vector<string> redir_args = get_redir_args(); (maybe just needs to be a string?)
-        //redir_vec.pop_front(); //actually, we want to remove commands up to the next REDIRECT
-    int fd = -1;
-    if (r_type == 1) {
-        fd = open (file.c_str(), O_RDONLY);
-		if (-1 == fd) perror ("open");
-        if (-1 == close(0)) perror ("close");       //close stdin 
-        if (-1 == dup2 (fd, 0)) perror ("dup2");   //dup stdin to the opened file
+        string file = get_redir_args(redir_vec);   //just need a string
+        vector<string> redir_reduced = remove_prev (redir_vec);
+        int fd = -1;
+        if (r_type == 1) {
+            fd = open (file.c_str(), O_RDONLY);
+            if (-1 == fd) perror ("open");
+            if (-1 == close(0)) perror ("close");       //close stdin 
+            if (-1 == dup2 (fd, 0)) perror ("dup2");   //dup stdin to the opened file
+			continue;
+        }
+        else if (r_type == 2) {
+            fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+            if (-1 == fd) perror ("open");
+            if (-1 == close (1)) perror ("close");      //close stdout
+            if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
+			continue;
+        }
+        else if (r_type == 3) {
+            fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+            if (-1 == fd) perror ("open");
+            if (-1 == close (1)) perror ("close");      //close stdout
+            if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
+			continue;
+        }
+        else if (r_type == 4) {
+            //piping
+        }
+        else if (r_type == 5) {     //string literal redirection
+            fd = open (".secrets", O_CREAT | O_RDWR | O_TRUNC, S_IRWXU);   //give open permissions
+            if (-1 == fd) perror ("open1");
+            //create a string that will be written by write
+            // (this string should be everything between quotes, single or double)
+            erase_all (file, "\"");
+            file += "\n";   //append a end line to this shiz
+            //use write(int fd, const void* buf, size_t count);
+            if (-1 == write (fd, file.c_str(), file.size())) perror ("write");
+            //close the temp file
+            if (-1 == close (fd)) perror("close");
+            //reopen the temp file
+            fd = open (".secrets", O_RDONLY);
+            if (-1 == fd) perror ("open2");
+            //duplicate stdin to the opened file (which contains the command line text)
+            if (-1 == dup2 (fd, 0)) perror ("dup2");
+        }
+    } //while
+    vector<string> exec_args_str = get_exec_args(redir_vec);
+	/*
+    cout << "EXEC_ARGS: " << endl;
+    BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
+	*/
+    exec_args = to_char_array (exec_args_str);
+	int r = execvp(exec_args[0], exec_args.data());
+    int errsv = errno;
+    if ( r != 0 ) {
+        perror("execvp");
+        return_status = false;
+        exit(EXIT_FAILURE);
     }
-    else if (r_type == 2) {
-        fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-		if (-1 == fd) perror ("open");
-        if (-1 == close (1)) perror ("close");      //close stdout
-        if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
+    if (errsv == ENOENT) {
+        return_status = false;
     }
-    else if (r_type == 3) {
-        fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
-		if (-1 == fd) perror ("open");
-        if (-1 == close (1)) perror ("close");      //close stdout
-        if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
-    }
-    else if (r_type == 4) {
-        //piping
-    }
-    else if (r_type == 5) {     //string literal redirection
-        fd = open (".secrets", O_CREAT | O_RDWR | O_TRUNC, S_IRWXU);   //give open permissions
-        if (-1 == fd) perror ("open1");
-        //create a string that will be written by write
-        // (this string should be everything between quotes, single or double)
-        string test_str = "something that will be written";
-        test_str += "\n";   //append a end line to this shiz
-        //use write(int fd, const void* buf, size_t count);
-        if (-1 == write (fd, test_str.c_str(), test_str.size())) perror ("write");
-        //close the temp file
-        if (-1 == close (fd)) perror("close");
-        //reopen the temp file
-        fd = open (".secrets", O_RDONLY);
-        if (-1 == fd) perror ("open2");
-        //duplicate stdin to the opened file (which contains the command line text)
-        if (-1 == dup2 (fd, 0)) perror ("dup2");
-    }
-    //execvp (exec_args[0], exec_args);
 }
 
 vector<string> get_exec_args (vector<string> redir_vec) {
@@ -461,19 +448,28 @@ vector<string> get_exec_args (vector<string> redir_vec) {
     return args;        //left side of redirection
 }
 
-vector<string> get_redir_args (vector<string> redir_vec) {
+string get_redir_args (vector<string> redir_vec) {
     vector<string>::iterator it = redir_vec.begin();
     while (it != redir_vec.end() && *it != "REDIRECT") {
         ++it;       //move the pointer to redirect
     }
-    ++it;
-    vector<string> args;
-    for (; it != redir_vec.end() && *it != "REDIRECT"; ++it) {
-        args.push_back(*it);        //grab everything up to next redirection
+    ++it;       //one past REDIRECT
+    if (it != redir_vec.end() && *it != "REDIRECT") {
+        return *it;      //the string on the other side of the redirection
     }
-    return args;
 }
 
+//delete strings up to and including the next REDIRECT
+vector<string> remove_prev (const vector<string> &redir_vec) {
+	vector<string> temp = redir_vec;
+    vector<string>::iterator it = temp.begin();
+    for (unsigned i = 0; i < temp.size(); ++i) {
+        ++it;       //increment it until we find the first REDIRECT
+        if (redir_vec.at(i) == "REDIRECT") break;
+    }
+    temp.erase(temp.begin(), it);
+	return temp;
+}
 
 /*
 void execute_redirect (vector<char*> argv)
