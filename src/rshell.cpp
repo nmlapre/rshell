@@ -369,40 +369,42 @@ int identify_redirection () {
 }
 
 void redir (vector<string> redir_vec) {
-
-    while (!redir_vec.empty() && !redirects.empty()) {  //that is to say, while some vector with the
-                                     //entire input is not yet emptied
+	vector<string> redir_reduced = redir_vec;		//a vector to be pared down each iteration
+	//redir_reduced = remove_prev (redir_reduced);
+    while (!redir_reduced.empty() && !redirects.empty()) {  
         int r_type = identify_redirection(); //looks at redirects, decides
-        //get vector<string>s for each side of the redirect
-        //          --> exec_args, redir_args (the redirect itself will be in redirects)
-        string file = get_redir_args(redir_vec);   //just need a string
-        vector<string> redir_reduced = remove_prev (redir_vec);
+
+        string file = get_redir_args(redir_reduced);   //just need a string
+												   //unless r_type is <<<, in which case we need
+												   //it all
+        redir_reduced = remove_prev (redir_reduced);
         int fd = -1;
-        if (r_type == 1) {
+        if (r_type == 1) {	//<
             fd = open (file.c_str(), O_RDONLY);
             if (-1 == fd) perror ("open");
             if (-1 == close(0)) perror ("close");       //close stdin 
             if (-1 == dup2 (fd, 0)) perror ("dup2");   //dup stdin to the opened file
 			continue;
         }
-        else if (r_type == 2) {
+        else if (r_type == 2) {	//>
             fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
             if (-1 == fd) perror ("open");
             if (-1 == close (1)) perror ("close");      //close stdout
             if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
 			continue;
         }
-        else if (r_type == 3) {
+        else if (r_type == 3) {	//>>
             fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
             if (-1 == fd) perror ("open");
             if (-1 == close (1)) perror ("close");      //close stdout
             if (-1 == dup2 (fd, 1)) perror ("dup2");   //dup stdout to the opened file
 			continue;
         }
-        else if (r_type == 4) {
+        else if (r_type == 4) { //|
             //piping
+			//execute_piping(get_exec_args(redir_vec));
         }
-        else if (r_type == 5) {     //string literal redirection
+        else if (r_type == 5) {	//<<<
             fd = open (".secrets", O_CREAT | O_RDWR | O_TRUNC, S_IRWXU);   //give open permissions
             if (-1 == fd) perror ("open1");
             //create a string that will be written by write
@@ -462,18 +464,27 @@ string get_redir_args (vector<string> redir_vec) {
 //delete strings up to and including the next REDIRECT
 vector<string> remove_prev (const vector<string> &redir_vec) {
 	vector<string> temp = redir_vec;
-    vector<string>::iterator it = temp.begin();
-    for (unsigned i = 0; i < temp.size(); ++i) {
-        ++it;       //increment it until we find the first REDIRECT
-        if (redir_vec.at(i) == "REDIRECT") break;
+	unsigned i;
+	bool first_redir = true;		//this will always start with a redirect
+    for (i = 0; i < temp.size(); ++i) {		//start at one to ignore the first command
+        if (temp.at(i) == "REDIRECT" && !first_redir) {
+		   	break;
+		} else if (temp.at(i) == "REDIRECT") {
+			first_redir = false;
+		}
     }
-    temp.erase(temp.begin(), it);
+	unsigned j = 0;
+	while (j < i) {
+		pop_front(temp);
+		++j;
+	}
 	return temp;
 }
 
 /*
-void execute_redirect (vector<char*> argv)
+void execute_piping (vector<string> args)
 {
+	vector<char> argv = to_char_array(args);
     //read end of the pipe (expanded scope)
     int savestdin;
 
@@ -504,8 +515,8 @@ void execute_redirect (vector<char*> argv)
     {
         //must restore, or infinite loop
         if (-1 == (savestdin = dup(0))) perror("dup");
-        //make stdin the read end of the pipe
-        if (-1 == dup2(fd[0], 0)) perror("dup2");
+        //make stdin the read end of the pipe --> bug in the thing
+        //if (-1 == dup2(fd[0], 0)) perror("dup2");
         //close the write end of the pipe (unused right now)
         if (-1 == close(fd[1])) perror("close");
         //wait for the child process to finish (no zombeeeziez)
