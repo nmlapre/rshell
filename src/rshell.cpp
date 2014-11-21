@@ -81,6 +81,7 @@ void push_to_vectors(string, string, bool);
 vector<string> get_exec_args (vector<string> redir_vec); 
 string get_redir_args (vector<string> redir_vec); 
 vector<string> remove_prev (const vector<string> &redir_vec);
+void execute_piping (vector<string>);
 
 int main()
 {
@@ -286,6 +287,10 @@ void redir_execute (vector<string> argv)
 	cout << "redirects: " << endl;
 	BOOST_FOREACH (string s, redirects) cout << '[' << s << ']';
 	*/
+	bool pipes = find (redirects.begin(), redirects.end(), "|")  != redirects.end();
+	if (pipes) {
+		cout << "Piping not supported. All other redirection is." << endl;
+	}
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
@@ -293,13 +298,12 @@ void redir_execute (vector<string> argv)
 	}
 
 	if (pid == 0) {         //child
-		redir (argv);     
+		redir (argv);
 	} else {                //parent
 		if ( wait(0) == -1 ) {
 			perror("wait");
 			exit(EXIT_FAILURE);
 		}
-        struct stat sb;
         if (herestring) {
             if (-1 == unlink(".secrets")) perror ("unlink");
         }
@@ -392,13 +396,9 @@ int identify_redirection () {
 
 void redir (vector<string> redir_vec) {
 	vector<string> redir_reduced = redir_vec;		//a vector to be pared down each iteration
-	//redir_reduced = remove_prev (redir_reduced);
     while (!redir_reduced.empty() && !redirects.empty()) {  
         int r_type = identify_redirection(); //looks at redirects, decides
-
-        string file = get_redir_args(redir_reduced);   //just need a string
-												   //unless r_type is <<<, in which case we need
-												   //it all
+        string file = get_redir_args(redir_reduced);
         redir_reduced = remove_prev (redir_reduced);
         int fd = -1;
         if (r_type == 1) {	//<
@@ -423,8 +423,7 @@ void redir (vector<string> redir_vec) {
 			continue;
         }
         else if (r_type == 4) { //|
-            //piping
-			//execute_piping(get_exec_args(redir_vec));
+			//execute_piping(redir_vec);
         }
         else if (r_type == 5) {	//<<<
             fd = open (".secrets", O_CREAT | O_RDWR | O_TRUNC, S_IRWXU);   //give open permissions
@@ -460,8 +459,8 @@ void redir (vector<string> redir_vec) {
     } //while
     vector<string> exec_args_str = get_exec_args(redir_vec);
 	
-    cout << "EXEC_ARGS: " << endl;
-    BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
+    //cout << "EXEC_ARGS: " << endl;
+    //BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
 	
     exec_args = to_char_array (exec_args_str);
 	int r = execvp(exec_args[0], exec_args.data());
@@ -496,7 +495,7 @@ string get_redir_args (vector<string> redir_vec) {
     while (it != redir_vec.end() && *it != "REDIRECT") {
 		temp += *it;
 		++it;
-		if (it != redir_vec.end() ) {
+		if (it != redir_vec.end() && herestring) {
 			temp += " ";
 		}
     }
@@ -523,80 +522,111 @@ vector<string> remove_prev (const vector<string> &redir_vec) {
 	return temp;
 }
 
+vector<string> remove_for_pipes (const vector<string> &pipe_vec) {
+	vector<string> temp = pipe_vec;
+	unsigned i;
+	for (i = 0; i < temp.size(); ++i) {
+		if (temp.at(i) == "REDIRECT") break;
+	}
+	unsigned j = 0;
+	while (j <= i) {
+		pop_front (temp);
+		++j;
+	}
+	return temp;
+}
 /*
 void execute_piping (vector<string> args)
 {
-	vector<char> argv = to_char_array(args);
-    //read end of the pipe (expanded scope)
-    int savestdin;
+	vector<string> pipe_args1 = get_exec_args (args);
+	vector<string> pipe_args2 = get_exec_args (remove_for_pipes(args));
 
-    int fd[2];
-    //call pipe, puts the read end and write end file descriptors in fd
-    if (pipe(fd) == -1) perror("pipe");
+    cout << "pipe_args1: " << endl;
+    BOOST_FOREACH (string s, pipe_args1) cout << '[' << s << ']' << endl;
+    cout << "pipe_args2: " << endl;
+    BOOST_FOREACH (string s, pipe_args2) cout << '[' << s << ']' << endl;
+//
+	//get execvp arguments
+	vector<char*> argv1 = to_char_array(pipe_args1);
+	vector<char*> argv2 = to_char_array(pipe_args2);
+	
+	//file descriptors
+	int fd[2];
+	pid_t childpid;
+	pid_t childpid2;
 
-    //fork the program because woop woop
-    int pid = fork();
-    if (pid == -1) {
-        perror("fork");
-        exit(EXIT_FAILURE);
-    }
-    else if (pid == 0) {
-        cout << "child process" << endl;
+	//create pipe
+	if (pipe(fd) == -1) {
+		perror("pipe");
+	}
 
-        //write to the pipe
-        //make stdout the write end of the pipe
-        if (-1 == dup2 (fd[1], 1)) perror("dup2");
-        //close the read end of the pipe, we're not messing with it right now
-        if (-1 == close (fd[0])) perror("close");
-        //execute the command
-        if (-1 == execvp (argv[0], argv.data())) perror("execvp");
-        //kill the child process after we're done with cout
-        exit(1);
-    }
-    else if (pid > 0) //parent
-    {
-        //must restore, or infinite loop
-        if (-1 == (savestdin = dup(0))) perror("dup");
-        //make stdin the read end of the pipe --> bug in the thing
-        //if (-1 == dup2(fd[0], 0)) perror("dup2");
-        //close the write end of the pipe (unused right now)
-        if (-1 == close(fd[1])) perror("close");
-        //wait for the child process to finish (no zombeeeziez)
-        if (-1 == wait(0)) perror("wait");
+	childpid = fork();
+	if (childpid == -1) {
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
+	if (childpid == 0) {		//child
+		//close stdout (1), dup write end of pipe
+		if (-1 == close(1)) perror("close");
+		if (-1 == dup(fd[1])) perror("dup");
 
-        //BELOW: do another fork to execute the right side of the pipe command
-        //      in "names | sort" you would execute the sort command
-        //      probably another fork and execvp and all that
-        //      THE CODE CURRENTLY MAKES IT LOOP FOREVER
-        int pid2 = fork();
-        if (pid2 == -1) {
-            perror("fork");
-            exit(EXIT_FAILURE);
-        }
-        else if (pid == 0) {
-            cout << "second process of the pipe (child)" << endl;
-            //write to the pipe
-            //make stdout the write end of the pipe
-            if (-1 == dup2 (fd[1], 1)) perror("dup2");
-            //close the read end of the pipe, we're not using it currently
-            if (-1 == close (fd[0])) perror("close");
-            //execute the command
-            if (-1 == execvp (argv[0], argv.data())) perror("execvp");
-            //kill the child process after we're done
-            exit(1);
-        }
-        else if (pid > 0) {
-            //must restore, or infinite loop
-            if (-1 == (savestdin = dup(0))) perror("dup");
-            //make stdin the read end of the pipe
-            if (-1 == dup2(fd[0], 0)) perror("dup2");
-            //close the write end of the pipe
-            if (-1 == close(fd[1])) perror("close");
-            //wait for the child process to finish
-            if (-1 == wait(0)) perror("wait");
-        }
-    }
-    if (-1 == dup2(savestdin, 0)) perror("dup2");
+		//close both ends of the pipe
+		//if (-1 == close(fd[1])) perror("close");
+		//if (-1 == close(fd[0])) perror("close");
 
+		//execvp
+		int r = execvp(argv1[0], argv1.data());
+		if ( r != 0 ) {
+			perror("execvp");
+			exit(EXIT_FAILURE);
+		}
+
+		//kill the child
+		//exit(0);
+	} else {		//parent
+		//close both ends of the pipe
+		//if (-1 == close(fd[1])) perror("close");
+		//if (-1 == close(fd[0])) perror("close");
+
+
+		childpid2 = fork();
+		if (-1 == childpid2) {
+			perror("fork");
+			exit(EXIT_FAILURE);
+		}
+		if (childpid == 0) {		//child #2
+			//close stdin (0)
+			if (-1 == close(0)) perror("close");
+
+			//dup the read end of the pipe (gets fd = 0)
+			if (-1 == dup(fd[0])) perror("dup");
+			
+			//close both ends of the pipe
+			//if (-1 == close(fd[1])) perror("close");
+			//if (-1 == close(fd[0])) perror("close");
+
+			//execvp
+			int e = execvp(argv2[0], argv2.data());
+			if ( e != 0 ) {
+				perror("execvp");
+				exit(EXIT_FAILURE);
+			}
+		} else {		//parent
+			//close both ends of the pipe
+			if (-1 == close(fd[1])) perror("close");
+			if (-1 == close(fd[0])) perror("close");
+
+			//wait
+			int status;
+			if (-1 == wait(&status)) perror("wait");
+
+			wait (&status);
+			if (status == -1) perror("wait");
+		}
+
+		//close both ends of the pipe
+		if (-1 == close(fd[1])) perror("close");
+		if (-1 == close(fd[0])) perror("close");
+	}
 }
 */
