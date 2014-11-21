@@ -179,6 +179,8 @@ vector<string> tokenize(string user_input) {
     string redirout2 = ">>";
     string pipe = "|";
     string here_str = "<<<";
+	string redirerr1 = "2>";
+	string redirerr2 = "2>>";
 	BOOST_FOREACH (string t, tokenList) {
 		if (t.find(";") != string::npos) {          //command separator
 			push_to_vectors(t, sc, false);	
@@ -206,6 +208,18 @@ vector<string> tokenize(string user_input) {
                 push_to_vectors(t, redirin, true);
             }
         }
+		else if (t.find("2>") != string::npos) {
+			size_t pos = t.find("2>");
+			if (pos == 0 && (t.length()-1)==0 ) {
+				push_to_vectors(t, redirerr1, true);
+			}
+			else if (pos < (t.length()-2) && t.at(pos+2) == '>') {
+				push_to_vectors(t, redirerr2, true);
+			}
+			else if (pos <= (t.length()-1)) {
+				push_to_vectors(t, redirerr1, true);
+			}
+		}
         else if (t.find(">") != string::npos) {     
             size_t pos = t.find(">");
             if (pos < (t.length()-1) && t.at(pos+1) == '>') {  //first check that we can deference
@@ -266,6 +280,12 @@ void execute (vector<char*> argv) {
 //      appropriately to the next redirection thingy
 void redir_execute (vector<string> argv) 
 {
+	/*
+	cout << "commands: " << endl;
+	BOOST_FOREACH (string s, commands) cout << '[' << s << ']';
+	cout << "redirects: " << endl;
+	BOOST_FOREACH (string s, redirects) cout << '[' << s << ']';
+	*/
 	int pid = fork();
 	if (pid == -1) {
 		perror("fork");
@@ -365,7 +385,9 @@ int identify_redirection () {
 			type == ">"  ? 2 :
 			type == ">>" ? 3 :
 			type == "|"  ? 4 :
-            type == "<<<"? 5 : 0);
+            type == "<<<"? 5 :
+		    type == "2>" ? 6 :
+			type == "2>>"? 7 : 0);
 }
 
 void redir (vector<string> redir_vec) {
@@ -421,12 +443,26 @@ void redir (vector<string> redir_vec) {
             //duplicate stdin to the opened file (which contains the command line text)
             if (-1 == dup2 (fd, 0)) perror ("dup2");
         }
+		else if (r_type == 6) {
+            fd = open (file.c_str(), O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+            if (-1 == fd) perror ("open");
+            if (-1 == close (2)) perror ("close");      //close stdout
+            if (-1 == dup2 (fd, 2)) perror ("dup2");   //dup stdout to the opened file
+			continue;
+		}
+		else if (r_type == 7) {
+            fd = open (file.c_str(), O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+            if (-1 == fd) perror ("open");
+            if (-1 == close (2)) perror ("close");      //close stdout
+            if (-1 == dup2 (fd, 2)) perror ("dup2");   //dup stdout to the opened file
+			continue;
+		}
     } //while
     vector<string> exec_args_str = get_exec_args(redir_vec);
-	/*
+	
     cout << "EXEC_ARGS: " << endl;
     BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
-	*/
+	
     exec_args = to_char_array (exec_args_str);
 	int r = execvp(exec_args[0], exec_args.data());
     int errsv = errno;
@@ -456,9 +492,15 @@ string get_redir_args (vector<string> redir_vec) {
         ++it;       //move the pointer to redirect
     }
     ++it;       //one past REDIRECT
-    if (it != redir_vec.end() && *it != "REDIRECT") {
-        return *it;      //the string on the other side of the redirection
+	string temp = "";
+    while (it != redir_vec.end() && *it != "REDIRECT") {
+		temp += *it;
+		++it;
+		if (it != redir_vec.end() ) {
+			temp += " ";
+		}
     }
+	return temp;
 }
 
 //delete strings up to and including the next REDIRECT
