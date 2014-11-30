@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <pwd.h>
 #include <string.h>
 #include <string>
 #include <fcntl.h>
@@ -154,7 +155,29 @@ int main()
 }
 
 string user_prompt() {
-	cout << "~$ ";
+	//username
+	struct passwd *info = getpwuid(getuid());
+	if (0 != errno) perror ("getpwuid");
+	string username (info->pw_name);
+
+	//hostname
+	char *host = new char[80];
+	//char host[128];
+	if (gethostname (host, 80) == -1) perror ("gethostname");
+	string hostname (host);
+	delete [] host;
+
+	//working directory
+	string dir;
+	if (get_current_dir_name() == NULL) {
+		perror ("get_current_dir_name");
+		exit(EXIT_FAILURE);
+	} else {
+		dir = (get_current_dir_name());
+	}
+
+	string prompt = username + "@" + hostname + ":" + dir + " $ ";
+	cout << prompt;
 	string s;
 	getline(cin, s);
 	return s;
@@ -277,8 +300,6 @@ void execute (vector<char*> argv) {
 	}
 }
 
-//TODO: after each redirection, save the value somehow and then pass it
-//      appropriately to the next redirection thingy
 void redir_execute (vector<string> argv) 
 {
 	/*
