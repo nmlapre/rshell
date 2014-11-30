@@ -84,8 +84,16 @@ string get_redir_args (vector<string> redir_vec);
 vector<string> remove_prev (const vector<string> &redir_vec);
 void execute_piping (vector<string>);
 
+void signal_handler (int signum) {
+    //cout << "Interrupt signal (" << signum << ") received." << endl;
+	if (signum == SIGINT) {
+		return;
+	}
+}
+
 int main()
 {
+	signal (SIGINT, signal_handler);
 	while(1) {
 		clear_globals(); //clears out global vectors each time
 		string input = user_prompt(); //gets user input
