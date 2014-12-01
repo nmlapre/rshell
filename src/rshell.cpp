@@ -306,17 +306,15 @@ void execute (vector<string> argv) {
 	string path_strs = getenv ("PATH");
 	vector<string> paths;
 	split (paths, path_strs, is_any_of (":"));
-	vector<char*> c_paths = to_char_array (paths);
-	vector<char*> c_argv = to_char_array (argv);
+	exec_args.clear();
 	exec_args = to_char_array(argv);
 	string exec_path;
 	string name;
-	if (!c_argv.empty()) {
-		name = c_argv.front();
+	if (!argv.empty()) {
+		name = argv.front();
 	}
 	bool cmd_exists = false;
 	BOOST_FOREACH (string c, paths) {
-		cout << c << endl;
 		DIR *dirp = opendir (c.c_str());
 		if (dirp == NULL) perror ("opendir");
 		if (read_directory (name, dirp)) {
@@ -324,7 +322,6 @@ void execute (vector<string> argv) {
 			cmd_exists = true;
 			break;
 		}
-
 	}
 
 	int pid = fork();
