@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <pwd.h>
+#include <dirent.h>
 #include <string.h>
 #include <string>
 #include <fcntl.h>
@@ -61,7 +62,7 @@ vector<string> tokenize(string);
 vector<char*> to_char_array(vector<string>);
 
 //execute the command entered by the user
-void execute(vector<char*>);
+void execute(vector<string>);
 
 //handle redirection should the user input it
 int identify_redirection();
@@ -111,7 +112,7 @@ int main()
 		//cout << "redirects vector: " << endl;
 		//BOOST_FOREACH(string r, redirects) { cout << '[' << r << ']' << endl; }
 		
-		return_status = true; //holds whether or not the past execvp command succeeded
+		return_status = true; //holds whether or not the past exec command succeeded
 		for (it = commands.begin() ; it != commands.end(); ) {
 			if (*it == "CONNECTOR") {
 				if ( connectors.front() == ";" ) {
@@ -137,8 +138,6 @@ int main()
 					cont_exec = false;
 					pop_front(connectors);
 				}
-                //TODO: handle what happens if the user enters a pipe connector,
-                //      input/output connector (<, >, >>, |)
 				++it;
 			}
 			cmd.clear();
@@ -146,17 +145,15 @@ int main()
 				cmd.push_back(*it);
 				++it;
 			}
-			//at this point, if redirection, we will still have REDIRECT in the cmd vector
 			if (!redirects.empty()) { 
                 redirect = true;
             }
-			vector<char*> argv = to_char_array(cmd);
             if (redirect && cont_exec) {
-                //do redirect things, as it is distinct from logical operations
+                //do redirect things, as they are distinct from logical operations
                 redir_execute(cmd);
             }
 			else if (cont_exec) {
-				execute(argv);      //cmd must be vector<char*>
+				execute(cmd);
 			}
 		} 
 	}
@@ -170,7 +167,6 @@ string user_prompt() {
 
 	//hostname
 	char *host = new char[80];
-	//char host[128];
 	if (gethostname (host, 80) == -1) perror ("gethostname");
 	string hostname (host);
 	delete [] host;
@@ -283,27 +279,82 @@ vector<char*> to_char_array(vector<string> tokens) {
 	return progArgs;
 }
 
-void execute (vector<char*> argv) {
+bool read_directory (string name, DIR *dirp) {
+	struct dirent *dp;
+	while (dirp) {
+		errno = 0;
+		if ((dp = readdir (dirp)) != NULL) {
+			if (strcmp (dp->d_name, name.c_str()) == 0) {	//found
+				//execv the filepath
+				if (closedir (dirp) == -1) perror ("closedir");
+				return true;
+			}
+		} else {
+			if (errno == 0) {							//not found
+				if (closedir (dirp) == -1) perror ("closedir");
+				return false;
+			}
+			perror ("readdir");
+			if (closedir (dirp) == -1) perror ("closedir"); //read error
+			return false;
+		}
+	}
+	return false;
+}
+
+void execute (vector<string> argv) {
+	string path_strs = getenv ("PATH");
+	vector<string> paths;
+	split (paths, path_strs, is_any_of (":"));
+	vector<char*> c_paths = to_char_array (paths);
+	vector<char*> c_argv = to_char_array (argv);
+	exec_args = to_char_array(argv);
+	string exec_path;
+	string name;
+	if (!c_argv.empty()) {
+		name = c_argv.front();
+	}
+	bool cmd_exists = false;
+	BOOST_FOREACH (string c, paths) {
+		cout << c << endl;
+		DIR *dirp = opendir (c.c_str());
+		if (dirp == NULL) perror ("opendir");
+		if (read_directory (name, dirp)) {
+			exec_path = c + "/" + name;
+			cmd_exists = true;
+			break;
+		}
+
+	}
+
 	int pid = fork();
 	if (pid == -1) {
-		perror("fork");
-		exit(EXIT_FAILURE);
+		perror ("fork");
+		exit (EXIT_FAILURE);
 	}
 	if (pid == 0) {         //child
-		int r = execvp(argv[0], argv.data());
-		int errsv = errno;
-		if ( r != 0 ) {
-			perror("execvp");
-			return_status = false;
-			exit(EXIT_FAILURE);
+
+		if (cmd_exists) {
+			int r = execv (exec_path.c_str(), exec_args.data());
+			int errsv = errno;
+			if ( r != 0 ) {
+				perror ("execvp");
+				return_status = false;
+				exit (EXIT_FAILURE);
+			}
+			if (errsv == ENOENT) {
+				return_status = false;
+				exit (EXIT_SUCCESS);
+			}
+		} else {
+			cout << "Command not found. Sorry!" << endl;
+			exit (EXIT_SUCCESS);
 		}
-		if (errsv == ENOENT) {
-			return_status = false;
-		}
+		
 	} else {                //parent
 		if ( wait(0) == -1 ) {
-			perror("wait");
-			exit(EXIT_FAILURE);
+			perror ("wait");
+			exit (EXIT_FAILURE);
 		}
 	}
 }
@@ -330,8 +381,8 @@ void redir_execute (vector<string> argv)
 		redir (argv);
 	} else {                //parent
 		if ( wait(0) == -1 ) {
-			perror("wait");
-			exit(EXIT_FAILURE);
+			perror ("wait");
+			exit (EXIT_FAILURE);
 		}
         if (herestring) {
             if (-1 == unlink(".secrets")) perror ("unlink");
