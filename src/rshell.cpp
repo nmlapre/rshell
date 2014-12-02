@@ -308,9 +308,6 @@ void execute (vector<string> argv) {
 	string path_strs(c_path_strs);
 	vector<string> paths;
 	split (paths, path_strs, is_any_of (":"));
-	exec_args.clear();
-	exec_args = to_char_array(argv);
-	vector<char*> exec_args_test = to_char_array (argv);
 	
 	string exec_path;
 	string name;
@@ -361,6 +358,8 @@ void execute (vector<string> argv) {
 	if (pid == 0) {         //child
 
 		if (cmd_exists) {
+			vector<char*> exec_args_test = to_char_array (argv);
+			//if (redirect) redir (argv);
 			int r = execv (exec_path.c_str(), &exec_args_test[0]);
 			int errsv = errno;
 			if ( r != 0 ) {
