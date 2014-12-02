@@ -166,11 +166,12 @@ string user_prompt() {
 	string username (info->pw_name);
 
 	//hostname
-	char host[100];
-	if (gethostname (host, 100) == -1) perror ("gethostname");
+	char host[BUFSIZ];
+	if (-1 == gethostname (host, sizeof (host))) perror ("gethostname");
 	string hostname (host);
 
 	//working directory
+	/*
 	string dir;
 	if (get_current_dir_name() == NULL) {
 		perror ("get_current_dir_name");
@@ -178,6 +179,10 @@ string user_prompt() {
 	} else {
 		dir = (get_current_dir_name());
 	}
+	*/
+	char c_dir[BUFSIZ];
+	if (NULL == getcwd (c_dir, sizeof (c_dir))) perror ("getcwd");
+	string dir (c_dir);
 
 	string prompt = username + "@" + hostname + ":" + dir + " $ ";
 	cout << prompt;
@@ -386,12 +391,39 @@ void execute (vector<string> argv) {
 
 void redir_execute (vector<string> argv) 
 {
+	char *c_path_strs = getenv ("PATH");
+	if (c_path_strs == NULL) perror ("getenv");
+	string path_strs(c_path_strs);
+	vector<string> paths;
+	split (paths, path_strs, is_any_of (":"));
+	
+	string exec_path;
+	string name;
+	if (!argv.empty()) {
+		name = argv.front();
+	}
+	bool cmd_exists = false;
+
+	BOOST_FOREACH (string c, paths) {
+		DIR *dirp = opendir (c.c_str());
+		//if (dirp == NULL) perror ("opendir");
+		if (0) perror ("opendir");
+		if (read_directory (name, dirp)) {
+			exec_path = c;
+			exec_path += "/";
+			exec_path += name;
+			cmd_exists = true;
+			break;
+		}
+	}
+
 	/*
 	cout << "commands: " << endl;
 	BOOST_FOREACH (string s, commands) cout << '[' << s << ']';
 	cout << "redirects: " << endl;
 	BOOST_FOREACH (string s, redirects) cout << '[' << s << ']';
 	*/
+
 	bool pipes = find (redirects.begin(), redirects.end(), "|")  != redirects.end();
 	if (pipes) {
 		cout << "Piping not supported. All other redirection is." << endl;
@@ -411,7 +443,7 @@ void redir_execute (vector<string> argv)
 		//BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
 		
 		exec_args = to_char_array (exec_args_str);
-		int r = execvp(exec_args[0], &exec_args[0]);
+		int r = execv (exec_path.c_str(), &exec_args[0]);
 		int errsv = errno;
 		if ( r != 0 ) {
 			perror("execvp");
