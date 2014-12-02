@@ -303,20 +303,45 @@ bool read_directory (string name, DIR *dirp) {
 }
 
 void execute (vector<string> argv) {
-	string path_strs = getenv ("PATH");
+	char *c_path_strs = getenv ("PATH");
+	if (c_path_strs == NULL) perror ("getenv");
+	string path_strs(c_path_strs);
 	vector<string> paths;
 	split (paths, path_strs, is_any_of (":"));
 	exec_args.clear();
 	exec_args = to_char_array(argv);
+	//cout << "exec_args(execute): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
 	string exec_path;
 	string name;
 	if (!argv.empty()) {
 		name = argv.front();
 	}
 	bool cmd_exists = false;
+	bool is_cd = (argv.at(0) == "cd");
+	//cd should not be done in a child process
+	if (is_cd) {
+		if (argv.size() == 1) {
+			string home = getenv ("HOME");				//ERROR CHECK
+			if (-1 == chdir (home.c_str())) perror ("chdir");
+			return;
+		} else if (argv.size() == 2) {
+			string pth = argv.at(1);
+			char cwd[BUFSIZ];
+			if (NULL == getcwd (cwd, sizeof(cwd))) perror ("getcwd");
+			strcat (cwd, "/");
+			strcat (cwd, pth.c_str());
+			if (-1 == chdir (cwd)) perror ("chdir");
+			return;
+		} else {
+			cout << "Unsupported use of cd. Usage:\ncd [PATH]" << endl;
+			return;
+		}
+	}
+
 	BOOST_FOREACH (string c, paths) {
 		DIR *dirp = opendir (c.c_str());
-		if (dirp == NULL) perror ("opendir");
+		//if (dirp == NULL) perror ("opendir");
+		if (0) perror ("opendir");
 		if (read_directory (name, dirp)) {
 			exec_path = c + "/" + name;
 			cmd_exists = true;
@@ -332,10 +357,11 @@ void execute (vector<string> argv) {
 	if (pid == 0) {         //child
 
 		if (cmd_exists) {
+			//cout << "exec_args(child): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
 			int r = execv (exec_path.c_str(), exec_args.data());
 			int errsv = errno;
 			if ( r != 0 ) {
-				perror ("execvp");
+				perror ("execv");
 				return_status = false;
 				exit (EXIT_FAILURE);
 			}
@@ -349,6 +375,7 @@ void execute (vector<string> argv) {
 		}
 		
 	} else {                //parent
+		//cout << "exec_args(parent): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
 		if ( wait(0) == -1 ) {
 			perror ("wait");
 			exit (EXIT_FAILURE);
