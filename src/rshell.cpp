@@ -166,10 +166,9 @@ string user_prompt() {
 	string username (info->pw_name);
 
 	//hostname
-	char *host = new char[80];
-	if (gethostname (host, 80) == -1) perror ("gethostname");
+	char host[100];
+	if (gethostname (host, 100) == -1) perror ("gethostname");
 	string hostname (host);
-	delete [] host;
 
 	//working directory
 	string dir;
@@ -311,9 +310,8 @@ void execute (vector<string> argv) {
 	split (paths, path_strs, is_any_of (":"));
 	exec_args.clear();
 	exec_args = to_char_array(argv);
+	vector<char*> exec_args_test = to_char_array (argv);
 	
-
-	//cout << "exec_args(execute): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
 	string exec_path;
 	string name;
 	if (!argv.empty()) {
@@ -341,19 +339,20 @@ void execute (vector<string> argv) {
 			return;
 		}
 	}
-	
-/*
+
 	BOOST_FOREACH (string c, paths) {
 		DIR *dirp = opendir (c.c_str());
 		//if (dirp == NULL) perror ("opendir");
 		if (0) perror ("opendir");
 		if (read_directory (name, dirp)) {
-			exec_path = c + "/" + name;
+			exec_path = c;
+			exec_path += "/";
+			exec_path += name;
 			cmd_exists = true;
 			break;
 		}
 	}
-*/
+
 	int pid = fork();
 	if (pid == -1) {
 		perror ("fork");
@@ -362,8 +361,7 @@ void execute (vector<string> argv) {
 	if (pid == 0) {         //child
 
 		if (cmd_exists) {
-			//cout << "exec_args(child): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
-			int r = execv (exec_path.c_str(), exec_args.data());
+			int r = execv (exec_path.c_str(), &exec_args_test[0]);
 			int errsv = errno;
 			if ( r != 0 ) {
 				perror ("execv");
@@ -380,7 +378,6 @@ void execute (vector<string> argv) {
 		}
 		
 	} else {                //parent
-		//cout << "exec_args(parent): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
 		if ( wait(0) == -1 ) {
 			perror ("wait");
 			exit (EXIT_FAILURE);
@@ -408,6 +405,25 @@ void redir_execute (vector<string> argv)
 
 	if (pid == 0) {         //child
 		redir (argv);
+		
+		vector<string> exec_args_str = get_exec_args(argv);
+		
+		//cout << "EXEC_ARGS: " << endl;
+		//BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
+		
+		exec_args = to_char_array (exec_args_str);
+		int r = execvp(exec_args[0], &exec_args[0]);
+		int errsv = errno;
+		if ( r != 0 ) {
+			perror("execvp");
+			return_status = false;
+			exit(EXIT_FAILURE);
+		}
+		if (errsv == ENOENT) {
+			return_status = false;
+			exit (EXIT_FAILURE);
+		}
+		
 	} else {                //parent
 		if ( wait(0) == -1 ) {
 			perror ("wait");
@@ -566,6 +582,7 @@ void redir (vector<string> redir_vec) {
 			continue;
 		}
     } //while
+	/*
     vector<string> exec_args_str = get_exec_args(redir_vec);
 	
     //cout << "EXEC_ARGS: " << endl;
@@ -582,6 +599,7 @@ void redir (vector<string> redir_vec) {
     if (errsv == ENOENT) {
         return_status = false;
     }
+	*/
 }
 
 vector<string> get_exec_args (vector<string> redir_vec) {
