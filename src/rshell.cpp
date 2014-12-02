@@ -274,6 +274,7 @@ vector<char*> to_char_array(vector<string> tokens) {
     for (size_t i = 0; i != tokens.size(); ++i)
 	{
 		progArgs[i] = &tokens[i][0]; //change all progArgs to c_strings
+		//progArgs[i] = tokens[i].c_str();
        	count++;
    	}
 	return progArgs;
@@ -326,12 +327,17 @@ void execute (vector<string> argv) {
 			return;
 		} else if (argv.size() == 2) {
 			string pth = argv.at(1);
-			char cwd[BUFSIZ];
-			if (NULL == getcwd (cwd, sizeof(cwd))) perror ("getcwd");
-			strcat (cwd, "/");
-			strcat (cwd, pth.c_str());
-			if (-1 == chdir (cwd)) perror ("chdir");
-			return;
+			if (pth.at(0) != '/') {
+				char cwd[BUFSIZ];
+				if (NULL == getcwd (cwd, sizeof(cwd))) perror ("getcwd");
+				strcat (cwd, "/");
+				strcat (cwd, pth.c_str());
+				if (-1 == chdir (cwd)) perror ("chdir");
+				return;
+			} else { //not in cwd
+				if (-1 == chdir (pth.c_str())) perror ("chdir");
+				return;
+			}
 		} else {
 			cout << "Unsupported use of cd. Usage:\ncd [PATH]" << endl;
 			return;
@@ -359,7 +365,6 @@ void execute (vector<string> argv) {
 	if (pid == 0) {         //child
 		if (cmd_exists && !redirect) {
 			vector<char*> exec_args_test = to_char_array (argv);
-			//if (redirect) redir (argv);
 			int r = execv (exec_path.c_str(), &exec_args_test[0]);
 			int errsv = errno;
 			if ( r != 0 ) {
