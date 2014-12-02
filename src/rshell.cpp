@@ -148,11 +148,7 @@ int main()
 			if (!redirects.empty()) { 
                 redirect = true;
             }
-            if (redirect && cont_exec) {
-                //do redirect things, as they are distinct from logical operations
-                redir_execute(cmd);
-            }
-			else if (cont_exec) {
+			if (cont_exec) {
 				execute(cmd);
 			}
 		} 
@@ -361,8 +357,7 @@ void execute (vector<string> argv) {
 		exit (EXIT_FAILURE);
 	}
 	if (pid == 0) {         //child
-
-		if (cmd_exists) {
+		if (cmd_exists && !redirect) {
 			vector<char*> exec_args_test = to_char_array (argv);
 			//if (redirect) redir (argv);
 			int r = execv (exec_path.c_str(), &exec_args_test[0]);
@@ -376,6 +371,27 @@ void execute (vector<string> argv) {
 				return_status = false;
 				exit (EXIT_SUCCESS);
 			}
+
+		} else if (cmd_exists && redirect) {
+			bool pipes = find (redirects.begin(), redirects.end(), "|")  != redirects.end();
+			if (pipes) {
+				cout << "Piping not supported. All other redirection is." << endl;
+			}
+			redir (argv);
+			vector<string> exec_args_str = get_exec_args(argv);
+			exec_args = to_char_array (exec_args_str);
+			int r = execv (exec_path.c_str(), &exec_args[0]);
+			int errsv = errno;
+			if ( r != 0 ) {
+				perror ("execv");
+				return_status = false;
+				exit (EXIT_FAILURE);
+			}
+			if (errsv == ENOENT) {
+				return_status = false;
+				exit (EXIT_SUCCESS);
+			}
+
 		} else {
 			cout << "Command not found. Sorry!" << endl;
 			exit (EXIT_SUCCESS);
@@ -386,83 +402,6 @@ void execute (vector<string> argv) {
 			perror ("wait");
 			exit (EXIT_FAILURE);
 		}
-	}
-}
-
-void redir_execute (vector<string> argv) 
-{
-	char *c_path_strs = getenv ("PATH");
-	if (c_path_strs == NULL) perror ("getenv");
-	string path_strs(c_path_strs);
-	vector<string> paths;
-	split (paths, path_strs, is_any_of (":"));
-	
-	string exec_path;
-	string name;
-	if (!argv.empty()) {
-		name = argv.front();
-	}
-	bool cmd_exists = false;
-
-	BOOST_FOREACH (string c, paths) {
-		DIR *dirp = opendir (c.c_str());
-		//if (dirp == NULL) perror ("opendir");
-		if (0) perror ("opendir");
-		if (read_directory (name, dirp)) {
-			exec_path = c;
-			exec_path += "/";
-			exec_path += name;
-			cmd_exists = true;
-			break;
-		}
-	}
-
-	/*
-	cout << "commands: " << endl;
-	BOOST_FOREACH (string s, commands) cout << '[' << s << ']';
-	cout << "redirects: " << endl;
-	BOOST_FOREACH (string s, redirects) cout << '[' << s << ']';
-	*/
-
-	bool pipes = find (redirects.begin(), redirects.end(), "|")  != redirects.end();
-	if (pipes) {
-		cout << "Piping not supported. All other redirection is." << endl;
-	}
-	int pid = fork();
-	if (pid == -1) {
-		perror("fork");
-		exit(EXIT_FAILURE);
-	}
-
-	if (pid == 0) {         //child
-		redir (argv);
-		
-		vector<string> exec_args_str = get_exec_args(argv);
-		
-		//cout << "EXEC_ARGS: " << endl;
-		//BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
-		
-		exec_args = to_char_array (exec_args_str);
-		int r = execv (exec_path.c_str(), &exec_args[0]);
-		int errsv = errno;
-		if ( r != 0 ) {
-			perror("execvp");
-			return_status = false;
-			exit(EXIT_FAILURE);
-		}
-		if (errsv == ENOENT) {
-			return_status = false;
-			exit (EXIT_FAILURE);
-		}
-		
-	} else {                //parent
-		if ( wait(0) == -1 ) {
-			perror ("wait");
-			exit (EXIT_FAILURE);
-		}
-        if (herestring) {
-            if (-1 == unlink(".secrets")) perror ("unlink");
-        }
 	}
 }
 
@@ -613,24 +552,6 @@ void redir (vector<string> redir_vec) {
 			continue;
 		}
     } //while
-	/*
-    vector<string> exec_args_str = get_exec_args(redir_vec);
-	
-    //cout << "EXEC_ARGS: " << endl;
-    //BOOST_FOREACH (string s, exec_args_str) cout << '[' << s << ']' << endl;
-	
-    exec_args = to_char_array (exec_args_str);
-	int r = execvp(exec_args[0], exec_args.data());
-    int errsv = errno;
-    if ( r != 0 ) {
-        perror("execvp");
-        return_status = false;
-        exit(EXIT_FAILURE);
-    }
-    if (errsv == ENOENT) {
-        return_status = false;
-    }
-	*/
 }
 
 vector<string> get_exec_args (vector<string> redir_vec) {
