@@ -303,6 +303,7 @@ bool read_directory (string name, DIR *dirp) {
 }
 
 void execute (vector<string> argv) {
+	
 	char *c_path_strs = getenv ("PATH");
 	if (c_path_strs == NULL) perror ("getenv");
 	string path_strs(c_path_strs);
@@ -310,6 +311,8 @@ void execute (vector<string> argv) {
 	split (paths, path_strs, is_any_of (":"));
 	exec_args.clear();
 	exec_args = to_char_array(argv);
+	
+
 	//cout << "exec_args(execute): " << exec_args.at(0) << ", " << (exec_args.size() > 1 ? exec_args.at(1) : "") << endl;
 	string exec_path;
 	string name;
@@ -319,6 +322,7 @@ void execute (vector<string> argv) {
 	bool cmd_exists = false;
 	bool is_cd = (argv.at(0) == "cd");
 	//cd should not be done in a child process
+	
 	if (is_cd) {
 		if (argv.size() == 1) {
 			string home = getenv ("HOME");				//ERROR CHECK
@@ -337,7 +341,8 @@ void execute (vector<string> argv) {
 			return;
 		}
 	}
-
+	
+/*
 	BOOST_FOREACH (string c, paths) {
 		DIR *dirp = opendir (c.c_str());
 		//if (dirp == NULL) perror ("opendir");
@@ -348,7 +353,7 @@ void execute (vector<string> argv) {
 			break;
 		}
 	}
-
+*/
 	int pid = fork();
 	if (pid == -1) {
 		perror ("fork");
