@@ -33,7 +33,7 @@ and print their contents.
 
 rshell allows for redirection (all but piping). In addition, rshell handles the ^C
 signal as you expect it would. To fully exit the shell, you can use a built-in
-command, "exit". cd is implemented in this shell, but does not allow flags.
+command, "exit". cd is implemented in this shell, but does not allow flags. 
 
 BUGS
 
