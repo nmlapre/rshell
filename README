@@ -31,6 +31,10 @@ ls commands, and is partially utilized within recursion as well. However, recurs
 is more dependent on nftw(), file tree walk, to recurse over all subdirectories
 and print their contents.
 
+rshell allows for redirection (all but piping). In addition, rshell handles the ^C
+signal as you expect it would. To fully exit the shell, you can use a built-in
+command, "exit". cd is implemented in this shell, but does not allow flags.
+
 BUGS
 
 I attempted as best I could to iron out bugs, but, as with the majority of 
@@ -87,3 +91,4 @@ LS:
 -the formatting is not exactly the same as default ls. It will approximate it,
     but it is not as fancy when it comes to dealing with multiple columns or
     very long files.
+
