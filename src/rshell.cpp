@@ -19,7 +19,7 @@
 using namespace std;
 using namespace boost;
 
-//stores each command to execvp, separated by connectors
+//stores each command to execv, separated by connectors
 vector<string> commands;
 
 //stores each command connector
@@ -28,7 +28,7 @@ vector<string> connectors;
 //stores each redirection connector
 vector<string> redirects;
 
-//holds arguments for execvp
+//holds arguments for execv
 vector<char*> exec_args;
 
 //custom function to allow pop_front for vectors
@@ -42,7 +42,7 @@ void pop_front(std::vector<T>& v)
 //boolean values used to determine how connectors will interact
 //with the commands issued between them, e.g. if they will
 //execute given the connector information and the success or
-//failure of the last call to execvp (the previous command)
+//failure of the last call to execv (the previous command)
 bool cont_exec = true;
 bool return_status = true;
 bool redirect = false;
@@ -58,7 +58,7 @@ string user_prompt();
 vector<string> tokenize(string);
 
 //make tokens a character array instead of a list of strings
-//so that it can be passed safely to execvp
+//so that it can be passed safely to execv
 vector<char*> to_char_array(vector<string>);
 
 //execute the command entered by the user
@@ -68,7 +68,7 @@ void execute(vector<string>);
 int identify_redirection();
 
 //execute, but for redirection, a distinct thing here
-//in this: execvp, control logic
+//in this: execv, control logic
 void redir_execute(vector<string>);
 
 //do the actual redirection

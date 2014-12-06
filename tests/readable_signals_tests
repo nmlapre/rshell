@@ -1,0 +1,57 @@
+#test basic commands (show that execv is working equivalently)
+ls
+ls -a
+ls -al
+ls -aaaaaaaa
+ls -a -a -a
+ls -a -R
+tee testfile
+^C
+pwd
+
+#show that logical connectors are working
+ls || pwd
+ls && pwd
+ls && pwd && ls && pwd
+ls; pwd
+
+#show that redirection is working
+ls > testfile
+cat testfile
+ls <<< "appending" >> testfile
+cat < testfile
+
+#show that cd is working
+cd .
+cd ..
+cd [WHATEVER]
+cd .././../././././.././
+cd /
+cd usr
+cd		# goes to home
+cd [back to rshell]
+
+#unsupported usage
+cd .. ..
+cd .. . . . . . . . . //
+cd sldkjfghdsflgk dl34i2jtroitge rg34
+
+#point out that the prompt also works
+
+#show that cd and connectors works
+cd .. && ls
+pwd && cd ..
+cd . || ls
+cd .. && cd tests
+
+#show that ^C works on things
+cat
+^C
+[press ^C a bunch of times]
+make
+^C (will show interrupt signal)
+ls -R /
+^C (cuz yeah)
+
+#quit the script
+exit
